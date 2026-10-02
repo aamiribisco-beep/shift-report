@@ -617,10 +617,10 @@ async function safeGetPrefix(prefix){
 
 // In-memory cache of every report record (key -> record|null), refreshed
 // from the sheet in one call instead of a call per day/shift.
-let reportsStore = {};
+let reportsStore = {}, allLoaded = false;
 async function loadReportsStore(){
   const fresh = await safeGetPrefix('report:');
-  if (fresh) { reportsStore = fresh; return; }
+  if (fresh) { reportsStore = fresh; allLoaded = true; return; }
   // GAS failed this cycle. If we already have real data on screen, keep
   // it rather than replace it with this device's local cache (which
   // usually doesn't have every other سرشیفت's entries). Only fall back
@@ -637,6 +637,60 @@ async function loadReferralsStore(){
   const fresh = await safeGetPrefix('referral:');
   if (fresh) { referralsStore = fresh; return; }
   if (!Object.keys(referralsStore).length) referralsStore = localGetPrefix('referral:');
+}
+
+/* ---------- بارگذاری ماه‌به‌ماه (به‌جای خواندن کل تاریخچه در هر بار باز شدن) ----------
+   کلیدها به شکل report:YYYY-MM-DD:shift هستند، پس با پیشوند ماه فقط همان ماه خوانده می‌شود. */
+const loadedMonths = new Set();
+const ymOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+function viewMonthKeys(){
+  const set = new Set([ymOf(today), ymOf(selectedDate)]);
+  const n = daysInJalaliMonth(calJY, calJM);
+  [1, n].forEach(d => { const g = jalaliToGregorian(calJY, calJM, d); if (g) set.add(ymOf(g)); });
+  return [...set];
+}
+async function loadMonths(months, force){
+  const need = months.filter(m => force || (!allLoaded && !loadedMonths.has(m)));
+  if (!need.length) return true;
+  const res = await Promise.all(need.flatMap(m => [safeGetPrefix('report:' + m), safeGetPrefix('referral:' + m)]));
+  let ok = true;
+  need.forEach((m, i) => {
+    const rep = res[2 * i], ref = res[2 * i + 1];
+    if (rep){ Object.keys(reportsStore).forEach(k => { if (k.indexOf('report:' + m) === 0) delete reportsStore[k]; }); Object.assign(reportsStore, rep); } else ok = false;
+    if (ref){ Object.keys(referralsStore).forEach(k => { if (k.indexOf('referral:' + m) === 0) delete referralsStore[k]; }); Object.assign(referralsStore, ref); } else ok = false;
+    if (rep && ref) loadedMonths.add(m);
+  });
+  return ok;
+}
+// اگر ماه لازم هنوز نیامده، بیش از ۴ ثانیه معطل نمی‌شویم؛ وقتی رسید، صفحه بی‌سروصدا تازه می‌شود
+let firstPaint = false;
+async function ensureViewLoaded(){
+  if (firstPaint) return;
+  let done = false;
+  const p = loadMonths(viewMonthKeys()).then(ok => { done = true; return ok; });
+  await Promise.race([p, new Promise(r => setTimeout(r, 4000))]);
+  if (!done) p.then(ok => { if (ok) refreshAllSilently(); });
+}
+
+/* ---------- نسخه‌ی ذخیره‌شده روی همین دستگاه: دفعه‌ی بعد برنامه فوراً باز می‌شود ---------- */
+const SNAP_KEY = 'shiftpanel:snapshot';
+function saveSnapshot(){
+  try{
+    const cut = new Date(today); cut.setDate(cut.getDate() - 75); const cutS = isoDate(cut);
+    const pick = obj => { const o = {}; Object.keys(obj).forEach(k => { const d = k.split(':')[1]; if (d && d >= cutS) o[k] = obj[k]; }); return o; };
+    localStorage.setItem(SNAP_KEY, JSON.stringify({ t: Date.now(), CONFIG, ADMIN_PASSWORD, SUPERVISORS, STAFF, reports: pick(reportsStore), referrals: pick(referralsStore) }));
+  }catch(e){ try{ localStorage.removeItem(SNAP_KEY); }catch(x){} }
+}
+function loadSnapshot(){
+  try{
+    const sn = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null');
+    if (!sn || !sn.CONFIG) return false;
+    CONFIG = sn.CONFIG; if (sn.ADMIN_PASSWORD) ADMIN_PASSWORD = sn.ADMIN_PASSWORD;
+    if (Array.isArray(sn.SUPERVISORS) && sn.SUPERVISORS.length) SUPERVISORS = sn.SUPERVISORS;
+    if (Array.isArray(sn.STAFF) && sn.STAFF.length) STAFF = sn.STAFF;
+    reportsStore = Object.assign({}, sn.reports || {}); referralsStore = Object.assign({}, sn.referrals || {});
+    return true;
+  }catch(e){ return false; }
 }
 function isEditingActive(){
   // A save button only exists while a shift's edit form is open —
@@ -660,13 +714,12 @@ async function loadConfig(prefetchedConfigPing){
         return raw;
       })
     : safeGet('shift-config');
-  const [cfg, pass, sup, staff] = await Promise.all([
-    configPromise,
-    safeGet('admin-password'),
-    safeGet('supervisors-list'),
-    safeGet('staff-list'),
-  ]);
+  const cfg = await configPromise;
   if (cfg) CONFIG = cfg;
+}
+// رمز مدیر و فهرست نفرات برای اولین نمایش لازم نیستند؛ در پس‌زمینه گرفته می‌شوند
+async function loadConfigExtras(){
+  const [pass, sup, staff] = await Promise.all([safeGet('admin-password'), safeGet('supervisors-list'), safeGet('staff-list')]);
   if (pass) ADMIN_PASSWORD = (typeof pass === 'string') ? pass : (pass.value || ADMIN_PASSWORD);
   if (Array.isArray(sup) && sup.length) SUPERVISORS = sup;
   if (Array.isArray(staff) && staff.length) STAFF = staff;
@@ -1088,6 +1141,7 @@ function render(){
         setBtnLoading(referBtn, true);
         const target = nextShiftOf(isoDate(selectedDate), def.key);
         const targetKey = referralKeyFor(target.dateStr, target.shiftKey);
+        await loadMonths([ymOf(new Date(target.dateStr + 'T00:00:00'))]);   // ماه مقصد (ممکن است ماه بعد باشد) حتماً خوانده شود تا ارجاع‌های قبلی پاک نشوند
         const updated = (referralsStore[targetKey] || []).concat([text]);
         const ok = await safeSet(targetKey, updated);
         setBtnLoading(referBtn, false);
@@ -1555,7 +1609,9 @@ function render(){
   });
 }
 
+async function renderCalendarListLocal(){ firstPaint = true; try{ await loadState(); await renderCalendarList(); } finally{ firstPaint = false; } }
 async function refreshAll(){
+  await ensureViewLoaded();
   await loadState();
   renderCalendarTitle();
   await renderCalendarList();
@@ -1627,6 +1683,7 @@ async function renderCalendarList(){
   const selEl = listEl.querySelector('.cal-day.selected');
   if (selEl) selEl.scrollIntoView({ behavior:'instant', inline:'center', block:'nearest' });
 
+  await ensureViewLoaded();
   for (const it of items){
     if (it.gDate.getTime() > today.getTime()){
       continue; // future day, keep default grey dot
@@ -1827,7 +1884,7 @@ document.getElementById('exportBtn').onclick = async () => {
 };
 
 document.getElementById('refreshBtn').onclick = async () => {
-  await Promise.all([loadReportsStore(), loadReferralsStore()]);
+  await loadMonths(viewMonthKeys(), true); saveSnapshot();
   await refreshAll();
 };
 
@@ -1835,7 +1892,7 @@ document.getElementById('refreshBtn').onclick = async () => {
 // actively open so nobody's half-typed report gets wiped mid-edit.
 setInterval(async () => {
   if (isEditingActive() || isAnyRowOpen()) return;
-  await Promise.all([loadReportsStore(), loadReferralsStore()]);
+  await loadMonths(viewMonthKeys(), true); saveSnapshot();
   await refreshAllSilently();
 }, 20000);
 
@@ -1858,8 +1915,10 @@ setInterval(async () => {
   // نسخه‌ای از داده روی همین مرورگر ذخیره شده باشد (از یک بارگذاری موفق
   // قبلی)، همان را فوراً نشان می‌دهیم؛ داده‌ی واقعی و احتمالاً جدیدتر سرور
   // هم در پس‌زمینه لود می‌شود و به‌محض رسیدن، بی‌سروصدا جایگزین می‌شود.
-  const hasLocalCache = !!localStorage.getItem('shiftpanel:shift-config');
-  if (hasLocalCache){
+  const hadSnap = loadSnapshot();
+  const legacyCache = !hadSnap && !!localStorage.getItem('shiftpanel:shift-config');
+  const hasLocalCache = hadSnap || legacyCache;
+  if (legacyCache){
     if (localStorage.getItem('shiftpanel:admin-password')){
       const p = JSON.parse(localStorage.getItem('shiftpanel:admin-password'));
       ADMIN_PASSWORD = (typeof p === 'string') ? p : (p.value || ADMIN_PASSWORD);
@@ -1872,31 +1931,25 @@ setInterval(async () => {
     if (Array.isArray(staff) && staff.length) STAFF = staff;
     reportsStore = localGetPrefix('report:');
     referralsStore = localGetPrefix('referral:');
-    await refreshAll();
+  }
+  if (hasLocalCache){
+    // نمایش فوری از نسخه‌ی ذخیره‌شده؛ داده‌ی تازه‌ی سرور در پس‌زمینه می‌آید
+    renderCalendarTitle(); await renderCalendarListLocal();
     overlay.classList.add('hidden');
     setTimeout(() => { overlay.style.display = 'none'; }, 300);
   }
 
   try{
-    // The raw gasGet ping runs alongside the real loads (rather than before
-    // them) purely to surface a connection failure — safeGet/safeGetPrefix
-    // swallow network errors and fall back to (empty) localStorage, so
-    // without this ping a failed connection would never throw and the app
-    // would silently open with empty data instead of showing an error.
-    // Its result also feeds loadConfig() directly (see prefetchedConfigPing
-    // there) so shift-config isn't requested from the slow backend twice.
-    // Running everything together (instead of one request after another)
-    // is what actually makes the panel open faster — the load time becomes
-    // whichever single request is slowest, not the sum of all of them.
+    // مسیر بحرانی فقط دو چیز است: تنظیمات چرخش + ماه‌های قابل‌مشاهده. بقیه (رمز مدیر، فهرست نفرات) بعداً.
     const configPing = gasConfigured() ? gasGet({ action:'get', key:'shift-config' }) : undefined;
-    await Promise.all([configPing, loadConfig(configPing), loadReportsStore(), loadReferralsStore()]);
+    await Promise.all([configPing, loadConfig(configPing), loadMonths(viewMonthKeys())]);
+    saveSnapshot();
     if (hasLocalCache) await refreshAllSilently(); else await refreshAll();
     overlay.classList.add('hidden');
     setTimeout(() => { overlay.style.display = 'none'; }, 300);
+    loadConfigExtras().then(() => { saveSnapshot(); refreshAllSilently(); }).catch(() => {});
   }catch(e){
     if (!hasLocalCache) showConnectError();
-    // اگر نسخه‌ی محلی از قبل نشان داده شده، شکست سینک پس‌زمینه را بی‌سروصدا
-    // نادیده می‌گیریم — کاربر همین الان دارد با آخرین نسخه‌ی ذخیره‌شده کار می‌کند.
   }
 })();
 
