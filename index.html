@@ -256,9 +256,37 @@
   .modal-box{ border-top:3px solid var(--accent); }
   .btn-save{ background:#17935c; }
   @media(max-width:480px){ .icon-row{ position:static; margin-bottom:12px; } .jalali-date{ font-size:30px; } }
+
+  /* ---------- صفحه‌ی ورود سرشیفت‌ها ---------- */
+  .auth-gate{ position:fixed; inset:0; z-index:99999; background:var(--bg); align-items:center; justify-content:center; padding:20px; overflow:auto; }
+  .auth-box{ width:100%; max-width:360px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px 22px; box-shadow:0 6px 24px rgba(20,30,40,.10); text-align:center; }
+  .auth-box img{ width:64px; height:64px; border-radius:14px; margin-bottom:10px; }
+  .auth-box h2{ margin:0 0 18px; font-size:18px; }
+  .auth-box label{ text-align:right; }
+  .auth-box input{ width:100%; box-sizing:border-box; background:#fff; border:1px solid var(--line); border-radius:8px; padding:11px 12px; font-family:inherit; font-size:16px; margin-bottom:14px; text-align:left; direction:ltr; }
+  .auth-box button.auth-main{ width:100%; font-family:inherit; font-size:15px; font-weight:700; border:none; border-radius:8px; padding:12px; cursor:pointer; background:var(--accent); color:#fff; }
+  .auth-box button.auth-main:disabled{ opacity:.55; }
+  .auth-box button.auth-sec{ width:100%; font-family:inherit; font-size:14px; font-weight:600; border:none; border-radius:8px; padding:10px; cursor:pointer; background:var(--panel-2); color:var(--text); margin-top:8px; }
+  .auth-box button.auth-danger{ background:var(--red-dim); color:var(--red); }
+  .auth-msg{ min-height:20px; margin:0 0 10px; font-size:13px; line-height:1.8; color:var(--red); }
+  .auth-msg.ok{ color:#2f7d3b; }
 </style>
 </head>
 <body>
+<div id="authGate" class="auth-gate" style="display:none">
+  <div class="auth-box">
+    <img src="icon-192.png" alt="">
+    <h2>ورود به پنل گزارش شیفت</h2>
+    <label for="authUser">نام کاربری</label>
+    <input id="authUser" type="text" inputmode="numeric" autocomplete="username" autocapitalize="off" spellcheck="false">
+    <label for="authPass">رمز عبور</label>
+    <input id="authPass" type="password" autocomplete="current-password">
+    <p class="auth-msg" id="authMsg"></p>
+    <button class="auth-main" id="authGo">ورود</button>
+  </div>
+</div>
+<script>try{ if(!localStorage.getItem('auth-session')) document.getElementById('authGate').style.display='flex'; }catch(e){ document.getElementById('authGate').style.display='flex'; }</script>
+
 <div id="connectOverlay" class="connect-overlay">
   <div class="connect-box">
     <div class="connect-spinner"></div>
@@ -330,6 +358,12 @@
         <label>تغییر رمز ادمین</label>
         <input type="password" id="newPassInput" placeholder="رمز جدید">
         <div class="btn-row"><button class="btn btn-save" id="savePassBtn">ذخیره رمز</button></div>
+      </div>
+
+      <div class="admin-section">
+        <label>بازنشانی رمز سرشیفت‌ها (برگشت به رمز پیش‌فرض)</label>
+        <select id="resetUserSel"></select>
+        <div class="btn-row"><button class="btn btn-save" id="resetUserBtn">بازنشانی رمز</button></div>
       </div>
 
       <div class="admin-section">
@@ -2067,6 +2101,141 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); evt = e; if (!matchMedia('(display-mode: standalone)').matches) btn.style.display = ''; });
   btn.onclick = async () => { if (!evt) return; evt.prompt(); await evt.userChoice.catch(() => {}); evt = null; btn.style.display = 'none'; };
   window.addEventListener('appinstalled', () => { btn.style.display = 'none'; });
+})();
+</script>
+<script>
+/* ---------- ورود با نام کاربری و رمز (چهار سرشیفت) ----------
+   نام کاربری‌ها اینجا تعریف شده‌اند. رمز پیش‌فرض ۱۲۳۴ است و هر نفر می‌تواند از دکمه‌ی 👤 آن را عوض کند.
+   رمزها به‌صورت هش در همان شیت (کلید auth:نام‌کاربری) ذخیره می‌شوند، نه متن ساده.
+   REMEMBER_LOGIN = true  → بعد از یک بار ورود، روی همان دستگاه دوباره رمز نمی‌خواهد (تا زمان «خروج»)
+   REMEMBER_LOGIN = false → هر بار برنامه باز شود دوباره رمز می‌خواهد */
+(function(){
+  const USERS = { '22861':'رضا شاکری', '22867':'مصطفی جعفری', '22975':'امیرحسین امیرماهانی', '22447':'امیرحسین احمدی' };
+  const DEFAULT_PASS = '1234';
+  const REMEMBER_LOGIN = true;
+  const SKEY = 'auth-session';
+  const store = REMEMBER_LOGIN ? localStorage : sessionStorage;
+
+  const $ = id => document.getElementById(id);
+  const gate = $('authGate'), msg = $('authMsg'), uI = $('authUser'), pI = $('authPass'), go = $('authGo');
+  const fa2en = s => String(s||'').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim();
+
+  async function sha(str){
+    try{
+      if (window.crypto && crypto.subtle){
+        const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
+      }
+    }catch(e){}
+    let h = 5381; for (let i=0;i<str.length;i++) h = ((h<<5)+h+str.charCodeAt(i))|0;   // جایگزین ساده اگر مرورگر SHA-256 نداشت
+    return 'x' + (h>>>0).toString(16);
+  }
+  const hashOf = (id, pass) => sha('shiftpanel|' + id + '|' + pass);
+
+  // رکورد رمز از سرور؛ اگر اینترنت نباشد خطا می‌دهد (null یعنی هنوز رمزی عوض نشده)
+  async function fetchRecord(id){
+    if (!gasConfigured()){
+      try{ return JSON.parse(localStorage.getItem('shiftpanel:auth:' + id) || 'null'); }catch(e){ return null; }
+    }
+    const res = await gasGet({ action:'get', key:'auth:' + id });
+    return (res && res.value) ? JSON.parse(res.value) : null;
+  }
+  async function expectedHash(id){
+    const rec = await fetchRecord(id);
+    const h = (rec && rec.h) ? rec.h : await hashOf(id, DEFAULT_PASS);
+    try{ localStorage.setItem('auth-hash:' + id, h); }catch(e){}
+    return h;
+  }
+
+  function getSession(){ try{ return JSON.parse(store.getItem(SKEY) || 'null'); }catch(e){ return null; } }
+  function setSession(id, h){ try{ store.setItem(SKEY, JSON.stringify({ id, h })); }catch(e){} }
+  function say(t, ok){ msg.textContent = t || ''; msg.className = 'auth-msg' + (ok ? ' ok' : ''); }
+  function showGate(t){ pI.value = ''; say(t); gate.style.display = 'flex'; setTimeout(() => (uI.value ? pI : uI).focus(), 50); }
+  function hideGate(){ gate.style.display = 'none'; }
+  function logout(t){ try{ store.removeItem(SKEY); localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY); }catch(e){} uI.value = ''; showGate(t); }
+
+  let fails = 0, lockUntil = 0;
+  async function doLogin(){
+    const now = Date.now();
+    if (now < lockUntil){ say('چند بار اشتباه وارد شد. ' + Math.ceil((lockUntil-now)/1000) + ' ثانیه صبر کنید.'); return; }
+    const id = fa2en(uI.value), pass = fa2en(pI.value);
+    if (!id || !pass){ say('نام کاربری و رمز را وارد کنید.'); return; }
+    if (!USERS[id]){ fails++; say('نام کاربری یا رمز اشتباه است.'); if (fails>=5){ lockUntil = Date.now()+30000; fails = 0; } return; }
+    go.disabled = true; say('در حال بررسی…', true);
+    try{
+      let exp;
+      try{ exp = await expectedHash(id); }
+      catch(e){ exp = localStorage.getItem('auth-hash:' + id); if (!exp){ say('اتصال برقرار نشد؛ اینترنت را بررسی کنید.'); return; } }
+      const h = await hashOf(id, pass);
+      if (h !== exp){ fails++; say('نام کاربری یا رمز اشتباه است.'); if (fails>=5){ lockUntil = Date.now()+30000; fails = 0; } return; }
+      fails = 0; setSession(id, h); say(''); hideGate(); addUserBtn();
+    }finally{ go.disabled = false; }
+  }
+  go.onclick = doLogin;
+  [uI, pI].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); }));
+
+  /* ----- دکمه‌ی کاربر: تغییر رمز و خروج ----- */
+  function addUserBtn(){
+    if ($('userBtn')) return;
+    const row = document.querySelector('.icon-row'); if (!row) return;
+    const b = document.createElement('button'); b.className = 'icon-btn'; b.id = 'userBtn'; b.title = 'حساب کاربری'; b.textContent = '👤';
+    row.prepend(b); b.onclick = openUserModal;
+  }
+  function openUserModal(){
+    const ses = getSession(); if (!ses) return;
+    const ov = document.createElement('div'); ov.className = 'auth-gate'; ov.style.display = 'flex'; ov.style.background = 'rgba(20,20,20,.45)';
+    ov.innerHTML = '<div class="auth-box"><h2>' + USERS[ses.id] + '</h2>' +
+      '<label>رمز فعلی</label><input type="password" id="cpOld" autocomplete="current-password">' +
+      '<label>رمز جدید (حداقل ۴ کاراکتر)</label><input type="password" id="cpNew" autocomplete="new-password">' +
+      '<label>تکرار رمز جدید</label><input type="password" id="cpNew2" autocomplete="new-password">' +
+      '<p class="auth-msg" id="cpMsg"></p>' +
+      '<button class="auth-main" id="cpSave">ذخیره رمز جدید</button>' +
+      '<button class="auth-sec" id="cpClose">بستن</button>' +
+      '<button class="auth-sec auth-danger" id="cpOut">خروج از حساب</button></div>';
+    document.body.appendChild(ov);
+    const q = id => ov.querySelector('#' + id), m = (t, ok) => { q('cpMsg').textContent = t || ''; q('cpMsg').className = 'auth-msg' + (ok ? ' ok' : ''); };
+    q('cpClose').onclick = () => ov.remove();
+    q('cpOut').onclick = () => { ov.remove(); logout(); };
+    q('cpSave').onclick = async () => {
+      const o = fa2en(q('cpOld').value), n = fa2en(q('cpNew').value), n2 = fa2en(q('cpNew2').value);
+      if (!o || !n){ m('همه‌ی فیلدها را پر کنید.'); return; }
+      if (n.length < 4){ m('رمز جدید باید حداقل ۴ کاراکتر باشد.'); return; }
+      if (n !== n2){ m('تکرار رمز جدید مطابقت ندارد.'); return; }
+      q('cpSave').disabled = true; m('در حال ذخیره…', true);
+      try{
+        let exp; try{ exp = await expectedHash(ses.id); }catch(e){ m('اتصال برقرار نشد؛ اینترنت را بررسی کنید.'); return; }
+        if (await hashOf(ses.id, o) !== exp){ m('رمز فعلی اشتباه است.'); return; }
+        const nh = await hashOf(ses.id, n);
+        const ok = await safeSet('auth:' + ses.id, { h: nh, t: Date.now() });
+        if (!ok){ m('ذخیره در سرور انجام نشد؛ اینترنت را بررسی کنید.'); return; }
+        try{ localStorage.setItem('auth-hash:' + ses.id, nh); }catch(e){}
+        setSession(ses.id, nh);
+        m('رمز جدید ذخیره شد.', true);
+        ['cpOld','cpNew','cpNew2'].forEach(i => q(i).value = '');
+      }finally{ q('cpSave').disabled = false; }
+    };
+  }
+
+  /* ----- بازنشانی رمز توسط ادمین (اگر کسی رمزش را فراموش کرد) ----- */
+  const rs = $('resetUserSel'), rb = $('resetUserBtn');
+  if (rs && rb){
+    rs.innerHTML = Object.keys(USERS).map(id => '<option value="' + id + '">' + USERS[id] + ' (' + id + ')</option>').join('');
+    rb.onclick = async () => {
+      const id = rs.value; if (!id) return;
+      if (!confirm('رمز ' + USERS[id] + ' به رمز پیش‌فرض برگردد؟')) return;
+      const ok = await safeSet('auth:' + id, { h: null, t: Date.now() });
+      alert(ok ? 'رمز ' + USERS[id] + ' به رمز پیش‌فرض برگشت.' : 'ذخیره ناموفق بود؛ اینترنت را بررسی کنید.');
+    };
+  }
+
+  /* ----- شروع: اگر قبلاً وارد شده، بی‌صدا با سرور تطبیق می‌دهیم (مثلاً رمز عوض یا بازنشانی شده باشد) ----- */
+  const ses = getSession();
+  if (ses && USERS[ses.id]){
+    hideGate(); addUserBtn();
+    expectedHash(ses.id).then(h => { if (h !== ses.h) logout('رمز تغییر کرده است؛ دوباره وارد شوید.'); }).catch(() => {});
+  } else {
+    showGate();
+  }
 })();
 </script>
 </body>
