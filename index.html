@@ -270,6 +270,13 @@
   .auth-box button.auth-danger{ background:var(--red-dim); color:var(--red); }
   .auth-msg{ min-height:20px; margin:0 0 10px; font-size:13px; line-height:1.8; color:var(--red); }
   .auth-msg.ok{ color:#2f7d3b; }
+
+  .u-card{ border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:10px; background:var(--panel-2); }
+  .u-card input, .u-card select{ width:100%; box-sizing:border-box; margin-bottom:8px; font-family:inherit; font-size:14px; padding:8px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .u-card input.u-id{ direction:ltr; text-align:left; }
+  .u-btns{ display:flex; gap:6px; flex-wrap:wrap; }
+  .u-btns .btn{ flex:1; padding:8px 6px; font-size:13px; }
+  .u-card .u-lbl{ font-size:12px; margin:0 0 3px; }
 </style>
 </head>
 <body>
@@ -316,7 +323,7 @@
       <div class="icon-row">
         <button class="icon-btn" id="fullscreenBtn" title="تمام‌صفحه">⛶</button>
         <button class="icon-btn" id="refreshBtn" title="دریافت آخرین تغییرات">↻</button>
-        <button class="icon-btn" id="adminBtn">ادمین</button>
+        <button class="icon-btn" id="adminBtn" style="display:none">مدیریت</button>
       </div>
       <p class="eyebrow">گزارش شیفت</p>
       <p class="jalali-date" id="jalaliDate">—</p>
@@ -355,15 +362,8 @@
       </div>
 
       <div class="admin-section">
-        <label>تغییر رمز ادمین</label>
-        <input type="password" id="newPassInput" placeholder="رمز جدید">
-        <div class="btn-row"><button class="btn btn-save" id="savePassBtn">ذخیره رمز</button></div>
-      </div>
-
-      <div class="admin-section">
-        <label>بازنشانی رمز سرشیفت‌ها (برگشت به رمز پیش‌فرض)</label>
-        <select id="resetUserSel"></select>
-        <div class="btn-row"><button class="btn btn-save" id="resetUserBtn">بازنشانی رمز</button></div>
+        <label>حساب‌های کاربری (نام، نام کاربری، تیم و نقش)</label>
+        <div id="usersAdmin"></div>
       </div>
 
       <div class="admin-section">
@@ -385,7 +385,7 @@
       </div>
 
       <div class="btn-row" style="margin-top:8px;">
-        <button class="btn btn-cancel" id="adminLogoutBtn">خروج از حالت ادمین</button>
+        <button class="btn btn-cancel" id="adminLogoutBtn">بستن پنل مدیریت</button>
       </div>
     </div>
 
@@ -393,16 +393,6 @@
   </div>
 </div>
 
-<div id="passwordModal" class="modal-backdrop" style="display:none">
-  <div class="modal-box">
-    <h3>ورود به پنل مدیریت</h3>
-    <input type="password" id="passInput" placeholder="رمز عبور" style="margin-bottom:14px;">
-    <div class="btn-row">
-      <button class="btn btn-cancel" id="passCancel">انصراف</button>
-      <button class="btn btn-save" id="passSubmit">ورود</button>
-    </div>
-  </div>
-</div>
 
 <script>
 const SHIFT_DEFS = [
@@ -473,7 +463,6 @@ function computeTeams(date, refDate, order){
 }
 
 let CONFIG = { refDate:'2026-09-03', order:['C','D','A','B'] };
-let ADMIN_PASSWORD = '1404';
 let isAdmin = false;
 
 const today = stripTime(new Date());
@@ -712,14 +701,14 @@ function saveSnapshot(){
   try{
     const cut = new Date(today); cut.setDate(cut.getDate() - 75); const cutS = isoDate(cut);
     const pick = obj => { const o = {}; Object.keys(obj).forEach(k => { const d = k.split(':')[1]; if (d && d >= cutS) o[k] = obj[k]; }); return o; };
-    localStorage.setItem(SNAP_KEY, JSON.stringify({ t: Date.now(), CONFIG, ADMIN_PASSWORD, SUPERVISORS, STAFF, reports: pick(reportsStore), referrals: pick(referralsStore) }));
+    localStorage.setItem(SNAP_KEY, JSON.stringify({ t: Date.now(), CONFIG, SUPERVISORS, STAFF, reports: pick(reportsStore), referrals: pick(referralsStore) }));
   }catch(e){ try{ localStorage.removeItem(SNAP_KEY); }catch(x){} }
 }
 function loadSnapshot(){
   try{
     const sn = JSON.parse(localStorage.getItem(SNAP_KEY) || 'null');
     if (!sn || !sn.CONFIG) return false;
-    CONFIG = sn.CONFIG; if (sn.ADMIN_PASSWORD) ADMIN_PASSWORD = sn.ADMIN_PASSWORD;
+    CONFIG = sn.CONFIG;
     if (Array.isArray(sn.SUPERVISORS) && sn.SUPERVISORS.length) SUPERVISORS = sn.SUPERVISORS;
     if (Array.isArray(sn.STAFF) && sn.STAFF.length) STAFF = sn.STAFF;
     reportsStore = Object.assign({}, sn.reports || {}); referralsStore = Object.assign({}, sn.referrals || {});
@@ -753,8 +742,7 @@ async function loadConfig(prefetchedConfigPing){
 }
 // رمز مدیر و فهرست نفرات برای اولین نمایش لازم نیستند؛ در پس‌زمینه گرفته می‌شوند
 async function loadConfigExtras(){
-  const [pass, sup, staff] = await Promise.all([safeGet('admin-password'), safeGet('supervisors-list'), safeGet('staff-list')]);
-  if (pass) ADMIN_PASSWORD = (typeof pass === 'string') ? pass : (pass.value || ADMIN_PASSWORD);
+  const [sup, staff] = await Promise.all([safeGet('supervisors-list'), safeGet('staff-list')]);
   if (Array.isArray(sup) && sup.length) SUPERVISORS = sup;
   if (Array.isArray(staff) && staff.length) STAFF = staff;
 }
@@ -1768,29 +1756,19 @@ document.addEventListener('fullscreenchange', updateFullscreenBtn);
 /* ---------------- Admin: login / rotation settings ---------------- */
 const adminBtn = document.getElementById('adminBtn');
 const adminBox = document.getElementById('adminBox');
-const passwordModal = document.getElementById('passwordModal');
 
+// دکمه‌ی «مدیریت» فقط برای حساب ادمین نمایش داده می‌شود (اسکریپت ورود در پایین فایل)
 adminBtn.onclick = () => {
-  if (isAdmin){ adminBox.style.display = adminBox.style.display==='block' ? 'none' : 'block'; return; }
-  document.getElementById('passInput').value = '';
-  passwordModal.style.display = 'flex';
-};
-document.getElementById('passCancel').onclick = () => { passwordModal.style.display='none'; };
-document.getElementById('passSubmit').onclick = () => {
-  const val = document.getElementById('passInput').value;
-  if (val === ADMIN_PASSWORD){
-    isAdmin = true;
-    passwordModal.style.display = 'none';
-    document.getElementById('refDateInput').value = CONFIG.refDate;
-    document.getElementById('pos0').value = CONFIG.order[0];
-    document.getElementById('pos1').value = CONFIG.order[1];
-    document.getElementById('pos2').value = CONFIG.order[2];
-    document.getElementById('pos3').value = CONFIG.order[3];
-    adminBox.style.display = 'block';
-    renderPeopleAdmin();
-  } else {
-    alert('رمز اشتباه است');
-  }
+  if (!isAdmin) return;
+  if (adminBox.style.display === 'block'){ adminBox.style.display = 'none'; return; }
+  document.getElementById('refDateInput').value = CONFIG.refDate;
+  document.getElementById('pos0').value = CONFIG.order[0];
+  document.getElementById('pos1').value = CONFIG.order[1];
+  document.getElementById('pos2').value = CONFIG.order[2];
+  document.getElementById('pos3').value = CONFIG.order[3];
+  adminBox.style.display = 'block';
+  renderPeopleAdmin();
+  if (window.renderUsersAdmin) window.renderUsersAdmin();
 };
 function renderPeopleAdmin(){
   const supWrap = document.getElementById('supListAdmin');
@@ -1835,7 +1813,7 @@ document.getElementById('addStaffBtn').onclick = async () => {
   renderPeopleAdmin();
 };
 
-document.getElementById('adminLogoutBtn').onclick = () => { isAdmin = false; adminBox.style.display='none'; };
+document.getElementById('adminLogoutBtn').onclick = () => { adminBox.style.display='none'; };
 
 document.getElementById('saveRotationBtn').onclick = async () => {
   const refDate = document.getElementById('refDateInput').value.trim();
@@ -1846,15 +1824,6 @@ document.getElementById('saveRotationBtn').onclick = async () => {
   const ok = await safeSet('shift-config', CONFIG);
   await loadState();
   alert(ok ? 'چرخش تیم‌ها ذخیره شد' : 'ذخیره ناموفق بود');
-};
-
-document.getElementById('savePassBtn').onclick = async () => {
-  const val = document.getElementById('newPassInput').value.trim();
-  if (!val) return;
-  ADMIN_PASSWORD = val;
-  const ok = await safeSet('admin-password', val);
-  document.getElementById('newPassInput').value = '';
-  alert(ok ? 'رمز جدید ذخیره شد' : 'ذخیره ناموفق بود');
 };
 
 /* ---------------- Admin: Excel export ---------------- */
@@ -1953,10 +1922,6 @@ setInterval(async () => {
   const legacyCache = !hadSnap && !!localStorage.getItem('shiftpanel:shift-config');
   const hasLocalCache = hadSnap || legacyCache;
   if (legacyCache){
-    if (localStorage.getItem('shiftpanel:admin-password')){
-      const p = JSON.parse(localStorage.getItem('shiftpanel:admin-password'));
-      ADMIN_PASSWORD = (typeof p === 'string') ? p : (p.value || ADMIN_PASSWORD);
-    }
     const cfg = JSON.parse(localStorage.getItem('shiftpanel:shift-config'));
     if (cfg) CONFIG = cfg;
     const sup = JSON.parse(localStorage.getItem('shiftpanel:supervisors-list') || 'null');
@@ -1993,15 +1958,9 @@ const FIREBASE_CONFIG = { apiKey: 'AIzaSyAYaTES4Ttr2CwIfECcWyvQNhVH8QzCupc', aut
 const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4EAB8X370ySYUJgh-hNELGn3Gc8';           // «Web Push certificates» در تنظیمات Firebase ← Cloud Messaging
 (function(){
   if (!FIREBASE_CONFIG || !VAPID_KEY) return;
-  const row = document.querySelector('.icon-row'); if (!row) return;
   const FB_VER = '10.12.2';
   const supported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
-  const btn = document.createElement('button');
-  btn.className = 'icon-btn'; btn.id = 'notifBtn'; btn.title = 'اعلان شروع شیفت'; btn.textContent = '🔔';
-  row.prepend(btn);
-
   const getReg = () => { try{ return JSON.parse(localStorage.getItem('push-reg') || 'null'); }catch(e){ return null; } };
-  const paintBtn = () => { const r = getReg(); btn.style.background = (r && supported && Notification.permission === 'granted') ? 'var(--green-dim)' : ''; };
   const loadScript = src => new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('load')); document.head.appendChild(el); });
   async function fbMessaging(){
     if (!window.firebase){
@@ -2044,45 +2003,8 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     try{ await register(r.team, r.name); }catch(e){}
   }
 
-  const ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;align-items:center;justify-content:center;padding:16px';
-  ov.innerHTML = '<div id="nBox" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:380px;width:100%;padding:18px;direction:rtl;font-family:inherit"></div>';
-  document.body.appendChild(ov);
-  const box = ov.firstChild, close = () => { ov.style.display = 'none'; };
-  ov.addEventListener('click', e => { if (e.target === ov) close(); });
-  const st = 'font-family:inherit;font-size:14px;padding:9px;border:1px solid var(--line);border-radius:8px;width:100%;background:#fff;margin-bottom:10px';
-  const bs = 'font-family:inherit;font-size:14px;font-weight:600;border:none;border-radius:8px;padding:10px 16px;cursor:pointer';
-
-  function render(msg){
-    const r = getReg(), teams = [...new Set((CONFIG && CONFIG.order) || ['A','B','C','D'])].sort();
-    let h = '<h3 style="margin:0 0 6px;font-size:16px">🔔 اعلان شروع شیفت</h3><p style="margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.8">در ساعت شروع شیفت، اگر کاری به شیفت شما ارجاع شده باشد، روی همین گوشی اعلان می‌آید.</p>';
-    if (!supported){
-      h += '<p style="color:var(--red);font-size:13px;line-height:1.8">این مرورگر از اعلان پشتیبانی نمی‌کند. روی آیفون، برنامه را با «Add to Home Screen» نصب کنید و از روی آیکون آن باز کنید (iOS ۱۶٫۴ به بالا).</p><button id="nClose" style="' + bs + ';background:var(--panel-2)">بستن</button>';
-    }else if (Notification.permission === 'denied'){
-      h += '<p style="color:var(--red);font-size:13px;line-height:1.8">اجازه‌ی اعلان برای این سایت مسدود شده است. از تنظیمات مرورگر (قفل کنار آدرس ← Notifications) آن را روی «Allow» بگذارید و دوباره امتحان کنید.</p><button id="nClose" style="' + bs + ';background:var(--panel-2)">بستن</button>';
-    }else if (r){
-      h += '<p style="font-size:14px;line-height:1.9;margin:0 0 12px">✅ فعال است<br>تیم: <b>' + r.team + '</b>' + (r.name ? '<br>نام: <b>' + r.name + '</b>' : '') + '</p><div style="display:flex;gap:8px"><button id="nOff" style="' + bs + ';background:var(--red-dim);color:var(--red)">غیرفعال‌سازی</button><button id="nClose" style="' + bs + ';background:var(--panel-2)">بستن</button></div>';
-    }else{
-      h += '<label style="font-size:13px;color:var(--muted)">شما در کدام تیم هستید؟</label><select id="nTeam" style="' + st + '">' + teams.map(t => '<option value="' + t + '">تیم ' + t + '</option>').join('') + '</select>' +
-           '<label style="font-size:13px;color:var(--muted)">نام شما</label><select id="nName" style="' + st + '"><option value="">—</option>' + SUPERVISORS.map(n => '<option>' + n + '</option>').join('') + '</select>' +
-           '<div style="display:flex;gap:8px"><button id="nOn" style="' + bs + ';background:var(--accent);color:#fff;flex:1">فعال‌سازی اعلان</button><button id="nClose" style="' + bs + ';background:var(--panel-2)">بستن</button></div>';
-    }
-    if (msg) h += '<p id="nMsg" style="margin:12px 0 0;font-size:13px;line-height:1.8;color:' + (msg.err ? 'var(--red)' : 'var(--muted)') + '">' + msg.t + '</p>';
-    box.innerHTML = h;
-    const q = id => box.querySelector('#' + id);
-    if (q('nClose')) q('nClose').onclick = close;
-    if (q('nOn')) q('nOn').onclick = async () => {
-      q('nOn').disabled = true; q('nMsg') || box.insertAdjacentHTML('beforeend', '<p id="nMsg" style="margin:12px 0 0;font-size:13px"></p>'); q('nMsg').textContent = 'در حال فعال‌سازی…';
-      try{ await register(q('nTeam').value, q('nName').value); paintBtn(); render({ t: 'اعلان فعال شد.' }); }
-      catch(e){
-        const m = e.message === 'denied' ? 'اجازه‌ی اعلان داده نشد.' : e.message === 'save' ? 'ثبت در سرور انجام نشد؛ اینترنت را بررسی کنید.' : 'فعال‌سازی ممکن نشد (' + (navigator.onLine === false ? 'اینترنت قطع است' : (e.message || e)) + ').';
-        render({ t: m, err: true });
-      }
-    };
-    if (q('nOff')) q('nOff').onclick = async () => { q('nOff').disabled = true; await unregister(); paintBtn(); render({ t: 'اعلان غیرفعال شد.' }); };
-  }
-  btn.onclick = () => { render(); ov.style.display = 'flex'; };
-  paintBtn();
+  // اعلان‌ها دیگر دکمه‌ی جدا ندارند؛ بر اساس حساب کاربری از اسکریپت ورود (پایین فایل) فعال می‌شوند
+  window.pushApi = { supported, getReg, register, unregister };
   setTimeout(refreshReg, 6000);
 })();
 
@@ -2104,21 +2026,30 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
 })();
 </script>
 <script>
-/* ---------- ورود با نام کاربری و رمز (چهار سرشیفت) ----------
-   نام کاربری‌ها اینجا تعریف شده‌اند. رمز پیش‌فرض ۱۲۳۴ است و هر نفر می‌تواند از دکمه‌ی 👤 آن را عوض کند.
-   رمزها به‌صورت هش در همان شیت (کلید auth:نام‌کاربری) ذخیره می‌شوند، نه متن ساده.
-   REMEMBER_LOGIN = true  → بعد از یک بار ورود، روی همان دستگاه دوباره رمز نمی‌خواهد (تا زمان «خروج»)
-   REMEMBER_LOGIN = false → هر بار برنامه باز شود دوباره رمز می‌خواهد */
+/* ---------- حساب‌های کاربری: ورود، رمز، اعلان و مدیریت ----------
+   فهرست کاربران در شیت (کلید users-list) ذخیره می‌شود و ادمین از دکمه‌ی «مدیریت» آن را ویرایش می‌کند.
+   SEED فقط مقدار اولیه است تا وقتی ادمین چیزی ذخیره نکرده. رمز پیش‌فرض ۱۲۳۴؛ رمزها به‌صورت هش در کلید auth:نام‌کاربری.
+   REMEMBER_LOGIN = true  → بعد از یک بار ورود، روی همان دستگاه دوباره رمز نمی‌خواهد (تا «خروج»)
+   REMEMBER_LOGIN = false → هر بار برنامه باز شود رمز می‌خواهد */
 (function(){
-  const USERS = { '22861':'رضا شاکری', '22867':'مصطفی جعفری', '22975':'امیرحسین امیرماهانی', '22447':'امیرحسین احمدی' };
+  const SEED = [
+    { id:'22861', name:'رضا شاکری',           role:'supervisor', team:'' },
+    { id:'22867', name:'مصطفی جعفری',          role:'supervisor', team:'' },
+    { id:'22975', name:'امیرحسین امیرماهانی', role:'supervisor', team:'' },
+    { id:'22447', name:'امیرحسین احمدی',       role:'supervisor', team:'' },
+    { id:'23008', name:'معین محبی‌زاده',       role:'admin',      team:'' }
+  ];
   const DEFAULT_PASS = '1234';
   const REMEMBER_LOGIN = true;
-  const SKEY = 'auth-session';
+  const SKEY = 'auth-session', UKEY = 'auth-users';
   const store = REMEMBER_LOGIN ? localStorage : sessionStorage;
 
   const $ = id => document.getElementById(id);
   const gate = $('authGate'), msg = $('authMsg'), uI = $('authUser'), pI = $('authPass'), go = $('authGo');
   const fa2en = s => String(s||'').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim();
+  const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const teamsList = () => [...new Set((typeof CONFIG !== 'undefined' && CONFIG && CONFIG.order) || ['A','B','C','D'])].sort();
+  let CUR = null;
 
   async function sha(str){
     try{
@@ -2127,16 +2058,35 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
         return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2,'0')).join('');
       }
     }catch(e){}
-    let h = 5381; for (let i=0;i<str.length;i++) h = ((h<<5)+h+str.charCodeAt(i))|0;   // جایگزین ساده اگر مرورگر SHA-256 نداشت
+    let h = 5381; for (let i=0;i<str.length;i++) h = ((h<<5)+h+str.charCodeAt(i))|0;
     return 'x' + (h>>>0).toString(16);
   }
   const hashOf = (id, pass) => sha('shiftpanel|' + id + '|' + pass);
 
-  // رکورد رمز از سرور؛ اگر اینترنت نباشد خطا می‌دهد (null یعنی هنوز رمزی عوض نشده)
+  /* ----- فهرست کاربران ----- */
+  const validUsers = a => Array.isArray(a) && a.length && a.every(u => u && u.id && u.name);
+  function cachedUsers(){ try{ const a = JSON.parse(localStorage.getItem(UKEY) || 'null'); return validUsers(a) ? a : null; }catch(e){ return null; } }
+  async function fetchUsers(){   // اگر اینترنت نباشد خطا می‌دهد
+    let a = null;
+    if (!gasConfigured()){ try{ a = JSON.parse(localStorage.getItem('shiftpanel:users-list') || 'null'); }catch(e){} }
+    else { const res = await gasGet({ action:'get', key:'users-list' }); a = (res && res.value) ? JSON.parse(res.value) : null; }
+    if (!validUsers(a)) a = SEED.map(u => Object.assign({}, u));
+    try{ localStorage.setItem(UKEY, JSON.stringify(a)); }catch(e){}
+    return a;
+  }
+  async function mutateUsers(fn){   // خواندن تازه ← تغییر ← ذخیره
+    let list; try{ list = await fetchUsers(); }catch(e){ alert('اتصال برقرار نشد؛ اینترنت را بررسی کنید.'); return false; }
+    const err = fn(list); if (err){ alert(err); return false; }
+    const ok = await safeSet('users-list', list);
+    if (!ok){ alert('ذخیره در سرور انجام نشد؛ اینترنت را بررسی کنید.'); return false; }
+    try{ localStorage.setItem(UKEY, JSON.stringify(list)); }catch(e){}
+    return true;
+  }
+  const resetPass = id => safeSet('auth:' + id, { h: null, t: Date.now() });
+
+  /* ----- رمز ----- */
   async function fetchRecord(id){
-    if (!gasConfigured()){
-      try{ return JSON.parse(localStorage.getItem('shiftpanel:auth:' + id) || 'null'); }catch(e){ return null; }
-    }
+    if (!gasConfigured()){ try{ return JSON.parse(localStorage.getItem('shiftpanel:auth:' + id) || 'null'); }catch(e){ return null; } }
     const res = await gasGet({ action:'get', key:'auth:' + id });
     return (res && res.value) ? JSON.parse(res.value) : null;
   }
@@ -2147,96 +2097,255 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     return h;
   }
 
+  /* ----- نشست و صفحه‌ی ورود ----- */
   function getSession(){ try{ return JSON.parse(store.getItem(SKEY) || 'null'); }catch(e){ return null; } }
   function setSession(id, h){ try{ store.setItem(SKEY, JSON.stringify({ id, h })); }catch(e){} }
   function say(t, ok){ msg.textContent = t || ''; msg.className = 'auth-msg' + (ok ? ' ok' : ''); }
   function showGate(t){ pI.value = ''; say(t); gate.style.display = 'flex'; setTimeout(() => (uI.value ? pI : uI).focus(), 50); }
   function hideGate(){ gate.style.display = 'none'; }
-  function logout(t){ try{ store.removeItem(SKEY); localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY); }catch(e){} uI.value = ''; showGate(t); }
+
+  function applyUser(u){
+    CUR = u; isAdmin = (u.role === 'admin');
+    const ab = $('adminBtn'); if (ab) ab.style.display = isAdmin ? '' : 'none';
+    if (!isAdmin){ const bx = $('adminBox'); if (bx) bx.style.display = 'none'; }
+    addUserBtn();
+  }
+  async function logout(t){
+    try{ store.removeItem(SKEY); localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY); }catch(e){}
+    CUR = null; isAdmin = false;
+    const ab = $('adminBtn'); if (ab) ab.style.display = 'none';
+    const bx = $('adminBox'); if (bx) bx.style.display = 'none';
+    uI.value = ''; showGate(t);
+    try{ if (window.pushApi && window.pushApi.getReg()) await Promise.race([window.pushApi.unregister(), new Promise(r => setTimeout(r, 4000))]); }catch(e){}   // این گوشی دیگر اعلان نگیرد
+    try{ refreshAllSilently(); }catch(e){}
+  }
 
   let fails = 0, lockUntil = 0;
+  function failed(){ fails++; say('نام کاربری یا رمز اشتباه است.'); if (fails >= 5){ lockUntil = Date.now() + 30000; fails = 0; } }
   async function doLogin(){
     const now = Date.now();
     if (now < lockUntil){ say('چند بار اشتباه وارد شد. ' + Math.ceil((lockUntil-now)/1000) + ' ثانیه صبر کنید.'); return; }
     const id = fa2en(uI.value), pass = fa2en(pI.value);
     if (!id || !pass){ say('نام کاربری و رمز را وارد کنید.'); return; }
-    if (!USERS[id]){ fails++; say('نام کاربری یا رمز اشتباه است.'); if (fails>=5){ lockUntil = Date.now()+30000; fails = 0; } return; }
     go.disabled = true; say('در حال بررسی…', true);
     try{
+      let users; try{ users = await fetchUsers(); }catch(e){ users = cachedUsers() || SEED; }
+      const u = users.find(x => x.id === id);
+      if (!u){ failed(); return; }
       let exp;
       try{ exp = await expectedHash(id); }
       catch(e){ exp = localStorage.getItem('auth-hash:' + id); if (!exp){ say('اتصال برقرار نشد؛ اینترنت را بررسی کنید.'); return; } }
       const h = await hashOf(id, pass);
-      if (h !== exp){ fails++; say('نام کاربری یا رمز اشتباه است.'); if (fails>=5){ lockUntil = Date.now()+30000; fails = 0; } return; }
-      fails = 0; setSession(id, h); say(''); hideGate(); addUserBtn();
+      if (h !== exp){ failed(); return; }
+      fails = 0; setSession(id, h); say(''); applyUser(u); hideGate();
+      try{ refreshAllSilently(); }catch(e){}
+      afterLogin(u);
     }finally{ go.disabled = false; }
   }
   go.onclick = doLogin;
   [uI, pI].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); }));
 
-  /* ----- دکمه‌ی کاربر: تغییر رمز و خروج ----- */
+  /* ----- پنجره‌های کمکی ----- */
+  function modal(html){
+    const ov = document.createElement('div'); ov.className = 'auth-gate'; ov.style.display = 'flex'; ov.style.background = 'rgba(20,20,20,.45)';
+    ov.innerHTML = '<div class="auth-box">' + html + '</div>';
+    document.body.appendChild(ov);
+    const q = id => ov.querySelector('#' + id);
+    const m = (t, ok) => { const e = q('mMsg'); if (e){ e.textContent = t || ''; e.className = 'auth-msg' + (ok ? ' ok' : ''); } };
+    return { ov, q, m, close: () => ov.remove() };
+  }
+
+  /* ----- تیم و اعلان (بر اساس حساب) ----- */
+  function afterLogin(u){
+    if (u.role !== 'admin' && !u.team){ askTeam(u); return; }
+    syncPush(u);
+  }
+  function askTeam(u){
+    if (document.getElementById('teamAsk')) return;
+    const w = modal('<h2 id="teamAsk">تیم شما کدام است؟</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای دریافت اعلان شروع شیفت، یک‌بار تیم خود را انتخاب کنید. بعداً فقط ادمین می‌تواند آن را عوض کند.</p>' +
+      '<select id="tSel" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:14px;background:#fff">' + teamsList().map(t => '<option value="' + t + '">تیم ' + t + '</option>').join('') + '</select>' +
+      '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="tOk">تأیید</button><button class="auth-sec" id="tLater">بعداً</button>');
+    w.q('tLater').onclick = w.close;
+    w.q('tOk').onclick = async () => {
+      const team = w.q('tSel').value; w.q('tOk').disabled = true; w.m('در حال ذخیره…', true);
+      const ok = await mutateUsers(list => { const x = list.find(a => a.id === u.id); if (!x) return 'حساب پیدا نشد.'; x.team = team; return null; });
+      w.q('tOk').disabled = false;
+      if (!ok){ w.m(''); return; }
+      u.team = team; w.close(); syncPush(u);
+    };
+  }
+  async function syncPush(u){
+    const api = window.pushApi; if (!api || !api.supported || !u.team) return;
+    if (Notification.permission === 'denied') return;
+    const reg = api.getReg();
+    if (Notification.permission === 'granted'){
+      if (!reg || reg.team !== u.team || reg.name !== u.name){ try{ await api.register(u.team, u.name); }catch(e){} }
+      return;
+    }
+    const snooze = +localStorage.getItem('push-snooze:' + u.id) || 0;
+    if (Date.now() - snooze < 86400000) return;   // «بعداً» → یک روز دیگر دوباره می‌پرسد
+    const w = modal('<h2>اعلان شروع شیفت</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای اینکه در ساعت شروع شیفت، کارهای ارجاع‌شده را روی همین گوشی ببینید، اجازه‌ی اعلان بدهید.</p>' +
+      '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="pOk">فعال‌سازی اعلان</button><button class="auth-sec" id="pLater">بعداً</button>');
+    w.q('pLater').onclick = () => { try{ localStorage.setItem('push-snooze:' + u.id, String(Date.now())); }catch(e){} w.close(); };
+    w.q('pOk').onclick = async () => {
+      w.q('pOk').disabled = true; w.m('در حال فعال‌سازی…', true);
+      try{ await api.register(u.team, u.name); w.close(); }
+      catch(e){ w.q('pOk').disabled = false; w.m(pushErr(e)); }
+    };
+  }
+  function pushErr(e){
+    return e.message === 'denied' ? 'اجازه‌ی اعلان داده نشد.' : e.message === 'save' ? 'ثبت در سرور انجام نشد؛ اینترنت را بررسی کنید.' : 'فعال‌سازی ممکن نشد (' + (navigator.onLine === false ? 'اینترنت قطع است' : (e.message || e)) + ').';
+  }
+
+  /* ----- دکمه‌ی حساب کاربری: رمز، وضعیت اعلان، خروج ----- */
   function addUserBtn(){
     if ($('userBtn')) return;
     const row = document.querySelector('.icon-row'); if (!row) return;
     const b = document.createElement('button'); b.className = 'icon-btn'; b.id = 'userBtn'; b.title = 'حساب کاربری'; b.textContent = '👤';
     row.prepend(b); b.onclick = openUserModal;
   }
+  function pushLine(){
+    const api = window.pushApi;
+    if (!CUR.team) return { t: CUR.role === 'admin' ? 'اعلان: برای این حساب تیمی تعیین نشده است.' : 'اعلان: تیم شما هنوز انتخاب نشده است.', btn: false };
+    if (!api || !api.supported) return { t: 'اعلان: این مرورگر پشتیبانی نمی‌کند (روی آیفون برنامه را با «Add to Home Screen» نصب و از روی آیکون باز کنید).', btn: false };
+    if (Notification.permission === 'denied') return { t: 'اعلان: اجازه برای این سایت مسدود است؛ از تنظیمات مرورگر روی «Allow» بگذارید.', btn: false };
+    const r = api.getReg();
+    if (r && Notification.permission === 'granted' && r.team === CUR.team) return { t: '🔔 اعلان فعال است (تیم ' + CUR.team + ').', btn: false };
+    return { t: 'اعلان روی این گوشی فعال نیست (تیم ' + CUR.team + ').', btn: true };
+  }
   function openUserModal(){
-    const ses = getSession(); if (!ses) return;
-    const ov = document.createElement('div'); ov.className = 'auth-gate'; ov.style.display = 'flex'; ov.style.background = 'rgba(20,20,20,.45)';
-    ov.innerHTML = '<div class="auth-box"><h2>' + USERS[ses.id] + '</h2>' +
+    if (!CUR) return;
+    const pl = pushLine();
+    const w = modal('<h2>' + esc(CUR.name) + '</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-8px 0 14px">' + (CUR.role === 'admin' ? 'ادمین' : 'سرشیفت') + (CUR.team ? ' — تیم ' + esc(CUR.team) : '') + '</p>' +
+      '<p style="font-size:13px;line-height:1.9;margin:0 0 6px" id="pLine">' + esc(pl.t) + '</p>' +
+      (pl.btn ? '<button class="auth-sec" id="pEnable" style="margin:0 0 14px">فعال‌سازی اعلان</button>' : '<div style="height:10px"></div>') +
       '<label>رمز فعلی</label><input type="password" id="cpOld" autocomplete="current-password">' +
       '<label>رمز جدید (حداقل ۴ کاراکتر)</label><input type="password" id="cpNew" autocomplete="new-password">' +
       '<label>تکرار رمز جدید</label><input type="password" id="cpNew2" autocomplete="new-password">' +
-      '<p class="auth-msg" id="cpMsg"></p>' +
+      '<p class="auth-msg" id="mMsg"></p>' +
       '<button class="auth-main" id="cpSave">ذخیره رمز جدید</button>' +
       '<button class="auth-sec" id="cpClose">بستن</button>' +
-      '<button class="auth-sec auth-danger" id="cpOut">خروج از حساب</button></div>';
-    document.body.appendChild(ov);
-    const q = id => ov.querySelector('#' + id), m = (t, ok) => { q('cpMsg').textContent = t || ''; q('cpMsg').className = 'auth-msg' + (ok ? ' ok' : ''); };
-    q('cpClose').onclick = () => ov.remove();
-    q('cpOut').onclick = () => { ov.remove(); logout(); };
-    q('cpSave').onclick = async () => {
-      const o = fa2en(q('cpOld').value), n = fa2en(q('cpNew').value), n2 = fa2en(q('cpNew2').value);
-      if (!o || !n){ m('همه‌ی فیلدها را پر کنید.'); return; }
-      if (n.length < 4){ m('رمز جدید باید حداقل ۴ کاراکتر باشد.'); return; }
-      if (n !== n2){ m('تکرار رمز جدید مطابقت ندارد.'); return; }
-      q('cpSave').disabled = true; m('در حال ذخیره…', true);
+      '<button class="auth-sec auth-danger" id="cpOut">خروج از حساب</button>');
+    w.q('cpClose').onclick = w.close;
+    w.q('cpOut').onclick = () => { w.close(); logout(); };
+    if (w.q('pEnable')) w.q('pEnable').onclick = async () => {
+      w.q('pEnable').disabled = true;
+      try{ await window.pushApi.register(CUR.team, CUR.name); const n = pushLine(); w.q('pLine').textContent = n.t; w.q('pEnable').remove(); w.m(''); }
+      catch(e){ w.q('pEnable').disabled = false; w.m(pushErr(e)); }
+    };
+    w.q('cpSave').onclick = async () => {
+      const o = fa2en(w.q('cpOld').value), n = fa2en(w.q('cpNew').value), n2 = fa2en(w.q('cpNew2').value);
+      if (!o || !n){ w.m('رمز فعلی و رمز جدید را وارد کنید.'); return; }
+      if (n.length < 4){ w.m('رمز جدید باید حداقل ۴ کاراکتر باشد.'); return; }
+      if (n !== n2){ w.m('تکرار رمز جدید مطابقت ندارد.'); return; }
+      w.q('cpSave').disabled = true; w.m('در حال ذخیره…', true);
       try{
-        let exp; try{ exp = await expectedHash(ses.id); }catch(e){ m('اتصال برقرار نشد؛ اینترنت را بررسی کنید.'); return; }
-        if (await hashOf(ses.id, o) !== exp){ m('رمز فعلی اشتباه است.'); return; }
-        const nh = await hashOf(ses.id, n);
-        const ok = await safeSet('auth:' + ses.id, { h: nh, t: Date.now() });
-        if (!ok){ m('ذخیره در سرور انجام نشد؛ اینترنت را بررسی کنید.'); return; }
-        try{ localStorage.setItem('auth-hash:' + ses.id, nh); }catch(e){}
-        setSession(ses.id, nh);
-        m('رمز جدید ذخیره شد.', true);
-        ['cpOld','cpNew','cpNew2'].forEach(i => q(i).value = '');
-      }finally{ q('cpSave').disabled = false; }
+        let exp; try{ exp = await expectedHash(CUR.id); }catch(e){ w.m('اتصال برقرار نشد؛ اینترنت را بررسی کنید.'); return; }
+        if (await hashOf(CUR.id, o) !== exp){ w.m('رمز فعلی اشتباه است.'); return; }
+        const nh = await hashOf(CUR.id, n);
+        const ok = await safeSet('auth:' + CUR.id, { h: nh, t: Date.now() });
+        if (!ok){ w.m('ذخیره در سرور انجام نشد؛ اینترنت را بررسی کنید.'); return; }
+        try{ localStorage.setItem('auth-hash:' + CUR.id, nh); }catch(e){}
+        setSession(CUR.id, nh);
+        w.m('رمز جدید ذخیره شد.', true);
+        ['cpOld','cpNew','cpNew2'].forEach(i => w.q(i).value = '');
+      }finally{ w.q('cpSave').disabled = false; }
     };
   }
 
-  /* ----- بازنشانی رمز توسط ادمین (اگر کسی رمزش را فراموش کرد) ----- */
-  const rs = $('resetUserSel'), rb = $('resetUserBtn');
-  if (rs && rb){
-    rs.innerHTML = Object.keys(USERS).map(id => '<option value="' + id + '">' + USERS[id] + ' (' + id + ')</option>').join('');
-    rb.onclick = async () => {
-      const id = rs.value; if (!id) return;
-      if (!confirm('رمز ' + USERS[id] + ' به رمز پیش‌فرض برگردد؟')) return;
-      const ok = await safeSet('auth:' + id, { h: null, t: Date.now() });
-      alert(ok ? 'رمز ' + USERS[id] + ' به رمز پیش‌فرض برگشت.' : 'ذخیره ناموفق بود؛ اینترنت را بررسی کنید.');
-    };
-  }
+  /* ----- پنل ادمین: مدیریت حساب‌ها ----- */
+  window.renderUsersAdmin = async function(){
+    const wrap = $('usersAdmin'); if (!wrap) return;
+    wrap.innerHTML = '<p class="people-empty">در حال دریافت…</p>';
+    let list; try{ list = await fetchUsers(); }catch(e){ wrap.innerHTML = '<p class="people-empty">اتصال برقرار نشد؛ دوباره «مدیریت» را باز کنید.</p>'; return; }
+    const teams = teamsList();
+    const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + l + '</option>';
+    const teamOpts = t => opt('', 'بدون تیم', !t) + teams.map(x => opt(x, 'تیم ' + x, x === t)).join('');
+    const roleOpts = r => opt('supervisor', 'سرشیفت', r !== 'admin') + opt('admin', 'ادمین', r === 'admin');
+    const fields = u => '<p class="u-lbl">نام</p><input class="u-name" value="' + esc(u.name) + '" placeholder="نام و نام خانوادگی">' +
+      '<p class="u-lbl">نام کاربری</p><input class="u-id" inputmode="numeric" value="' + esc(u.id) + '" placeholder="نام کاربری"' + (CUR && u.id === CUR.id ? ' disabled' : '') + '>' +
+      '<p class="u-lbl">تیم</p><select class="u-team">' + teamOpts(u.team || '') + '</select>' +
+      '<p class="u-lbl">نقش</p><select class="u-role"' + (CUR && u.id === CUR.id ? ' disabled' : '') + '>' + roleOpts(u.role) + '</select>';
+    wrap.innerHTML = list.map(u => '<div class="u-card" data-id="' + esc(u.id) + '">' + fields(u) +
+      '<div class="u-btns"><button class="btn btn-save u-save" type="button">ذخیره</button><button class="btn btn-cancel u-reset" type="button">بازنشانی رمز</button>' +
+      (CUR && u.id === CUR.id ? '' : '<button class="btn btn-cancel u-del" type="button" style="color:var(--red)">حذف</button>') + '</div></div>').join('') +
+      '<div class="u-card" id="uAddCard"><p class="u-lbl" style="font-weight:700">افزودن کاربر جدید</p>' + fields({ id:'', name:'', team:'', role:'supervisor' }) +
+      '<div class="u-btns"><button class="btn btn-save" id="uAddBtn" type="button">افزودن (رمز پیش‌فرض ۱۲۳۴)</button></div></div>';
 
-  /* ----- شروع: اگر قبلاً وارد شده، بی‌صدا با سرور تطبیق می‌دهیم (مثلاً رمز عوض یا بازنشانی شده باشد) ----- */
+    const read = card => ({ name: card.querySelector('.u-name').value.trim(), id: fa2en(card.querySelector('.u-id').value), team: card.querySelector('.u-team').value, role: card.querySelector('.u-role').value });
+    const syncSup = async (oldName, f) => {   // فهرست مسئولین شیفت (برای فرم گزارش) با نام حساب هماهنگ بماند
+      if (f.role !== 'supervisor') return;
+      const i = oldName ? SUPERVISORS.indexOf(oldName) : -1;
+      if (i > -1) SUPERVISORS[i] = f.name; else if (!SUPERVISORS.includes(f.name)) SUPERVISORS.push(f.name); else return;
+      await safeSet('supervisors-list', SUPERVISORS);
+    };
+    const done = async m => { if (m) alert(m); await window.renderUsersAdmin(); try{ renderPeopleAdmin(); }catch(e){} };
+
+    wrap.querySelectorAll('.u-card[data-id]').forEach(card => {
+      const oldId = card.dataset.id;
+      card.querySelector('.u-save').onclick = async () => {
+        const f = read(card);
+        if (!f.name || !f.id){ alert('نام و نام کاربری نباید خالی باشد.'); return; }
+        if (/\s/.test(f.id)){ alert('نام کاربری نباید فاصله داشته باشد.'); return; }
+        const self = CUR && oldId === CUR.id; if (self){ f.id = oldId; f.role = 'admin'; }
+        if (f.id !== oldId && !confirm('با تغییر نام کاربری، رمز این کاربر به رمز پیش‌فرض (۱۲۳۴) برمی‌گردد. ادامه می‌دهید؟')) return;
+        let oldName = '';
+        const ok = await mutateUsers(l => {
+          const u = l.find(x => x.id === oldId); if (!u) return 'کاربر پیدا نشد.';
+          if (f.id !== oldId && l.some(x => x.id === f.id)) return 'این نام کاربری قبلاً استفاده شده است.';
+          oldName = u.name; Object.assign(u, f);
+          if (!l.some(x => x.role === 'admin')) return 'حداقل یک ادمین باید وجود داشته باشد.';
+          return null;
+        });
+        if (!ok) return;
+        if (f.id !== oldId){ await resetPass(oldId); await resetPass(f.id); }
+        await syncSup(oldName, f);
+        if (self){ CUR.name = f.name; CUR.team = f.team; }
+        await done('ذخیره شد.' + (f.id !== oldId ? ' رمز این کاربر به ۱۲۳۴ برگشت.' : ''));
+      };
+      card.querySelector('.u-reset').onclick = async () => {
+        if (!confirm('رمز این کاربر به رمز پیش‌فرض (۱۲۳۴) برگردد؟')) return;
+        const ok = await resetPass(oldId); alert(ok ? 'رمز به ۱۲۳۴ برگشت.' : 'ذخیره ناموفق بود؛ اینترنت را بررسی کنید.');
+      };
+      const del = card.querySelector('.u-del');
+      if (del) del.onclick = async () => {
+        if (!confirm('این حساب حذف شود؟ (گزارش‌های قبلی او می‌مانند)')) return;
+        const ok = await mutateUsers(l => {
+          const i = l.findIndex(x => x.id === oldId); if (i < 0) return 'کاربر پیدا نشد.';
+          l.splice(i, 1); if (!l.some(x => x.role === 'admin')) return 'حداقل یک ادمین باید وجود داشته باشد.'; return null;
+        });
+        if (!ok) return; await resetPass(oldId); await done('حذف شد.');
+      };
+    });
+    $('uAddBtn').onclick = async () => {
+      const f = read($('uAddCard'));
+      if (!f.name || !f.id){ alert('نام و نام کاربری را وارد کنید.'); return; }
+      if (/\s/.test(f.id)){ alert('نام کاربری نباید فاصله داشته باشد.'); return; }
+      const ok = await mutateUsers(l => { if (l.some(x => x.id === f.id)) return 'این نام کاربری قبلاً استفاده شده است.'; l.push(f); return null; });
+      if (!ok) return; await resetPass(f.id); await syncSup('', f); await done('کاربر اضافه شد.');
+    };
+  };
+
+  /* ----- شروع ----- */
   const ses = getSession();
-  if (ses && USERS[ses.id]){
-    hideGate(); addUserBtn();
-    expectedHash(ses.id).then(h => { if (h !== ses.h) logout('رمز تغییر کرده است؛ دوباره وارد شوید.'); }).catch(() => {});
+  const su = ses && (cachedUsers() || SEED).find(x => x.id === ses.id);
+  if (su){
+    applyUser(su); hideGate();
+    (async () => {   // بی‌صدا با سرور تطبیق می‌دهیم: حذف حساب، تغییر رمز، تغییر نقش یا تیم
+      try{
+        const users = await fetchUsers(); const u = users.find(x => x.id === ses.id);
+        if (!u){ logout('حساب شما حذف شده است.'); return; }
+        if (await expectedHash(ses.id) !== ses.h){ logout('رمز تغییر کرده است؛ دوباره وارد شوید.'); return; }
+        const was = isAdmin; applyUser(u);
+        if (isAdmin !== was){ try{ refreshAllSilently(); }catch(e){} }
+        afterLogin(u);
+      }catch(e){}
+    })();
   } else {
     showGate();
   }
 })();
 </script>
+
 </body>
 </html>
