@@ -1953,6 +1953,105 @@ setInterval(async () => {
   }
 })();
 
+/* ---------- اعلان شروع شیفت (Firebase Cloud Messaging) ----------
+   اگر FIREBASE_CONFIG و VAPID_KEY خالی باشند، این بخش کاملاً غیرفعال است و دکمه‌ای نمایش داده نمی‌شود. */
+const FIREBASE_CONFIG = { apiKey: 'AIzaSyAYaTES4Ttr2CwIfECcWyvQNhVH8QzCupc', authDomain: 'shift-report-7ce87.firebaseapp.com', projectId: 'shift-report-7ce87', storageBucket: 'shift-report-7ce87.firebasestorage.app', messagingSenderId: '465460992371', appId: '1:465460992371:web:f853efc03cdd26e2450d06' };   // مثال: { apiKey:'...', authDomain:'...', projectId:'...', messagingSenderId:'...', appId:'...' }
+const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4EAB8X370ySYUJgh-hNELGn3Gc8';           // «Web Push certificates» در تنظیمات Firebase ← Cloud Messaging
+(function(){
+  if (!FIREBASE_CONFIG || !VAPID_KEY) return;
+  const row = document.querySelector('.icon-row'); if (!row) return;
+  const FB_VER = '10.12.2';
+  const supported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+  const btn = document.createElement('button');
+  btn.className = 'icon-btn'; btn.id = 'notifBtn'; btn.title = 'اعلان شروع شیفت'; btn.textContent = '🔔';
+  row.prepend(btn);
+
+  const getReg = () => { try{ return JSON.parse(localStorage.getItem('push-reg') || 'null'); }catch(e){ return null; } };
+  const paintBtn = () => { const r = getReg(); btn.style.background = (r && supported && Notification.permission === 'granted') ? 'var(--green-dim)' : ''; };
+  const loadScript = src => new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('load')); document.head.appendChild(el); });
+  async function fbMessaging(){
+    if (!window.firebase){
+      await loadScript('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-messaging-compat.js');
+    }
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    return firebase.messaging();
+  }
+  const hash = t => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + t.length.toString(36) + t.slice(-6).replace(/[^A-Za-z0-9]/g, 'x'); };
+
+  async function obtainToken(){
+    const msg = await fbMessaging();
+    const reg = await navigator.serviceWorker.ready;
+    const token = await msg.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) throw new Error('notoken');
+    // اگر برنامه باز باشد، اعلان به‌صورت دستی نشان داده می‌شود
+    msg.onMessage(p => { const n = (p && p.notification) || {}; reg.showNotification(n.title || 'گزارش شیفت', { body: n.body || '', icon: 'icon-192.png', dir: 'rtl', lang: 'fa', tag: 'shift-referral' }); });
+    return token;
+  }
+  async function register(team, name){
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('denied');
+    const token = await obtainToken();
+    const key = 'pushtoken:' + hash(token);
+    const ok = await safeSet(key, { team, name, token, t: Date.now() });
+    if (!ok) throw new Error('save');
+    localStorage.setItem('push-reg', JSON.stringify({ team, name, key, t: Date.now() }));
+  }
+  async function unregister(){
+    const r = getReg();
+    try{ const msg = await fbMessaging(); await msg.deleteToken(); }catch(e){}
+    if (r) await safeSet(r.key, { deleted: true, t: Date.now() });
+    localStorage.removeItem('push-reg');
+  }
+  // نوسازی بی‌صدای ثبت (توکن ممکن است عوض شود)
+  async function refreshReg(){
+    const r = getReg(); if (!r || !supported || Notification.permission !== 'granted') return;
+    if (Date.now() - (r.t || 0) < 7 * 86400000) { obtainToken().catch(() => {}); return; }
+    try{ await register(r.team, r.name); }catch(e){}
+  }
+
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = '<div id="nBox" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:380px;width:100%;padding:18px;direction:rtl;font-family:inherit"></div>';
+  document.body.appendChild(ov);
+  const box = ov.firstChild, close = () => { ov.style.display = 'none'; };
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  const st = 'font-family:inherit;font-size:14px;padding:9px;border:1px solid var(--line);border-radius:8px;width:100%;background:#fff;margin-bottom:10px';
+  const bs = 'font-family:inherit;font-size:14px;font-weight:600;border:none;border-radius:8px;padding:10px 16px;cursor:pointer';
+
+  function render(msg){
+    const r = getReg(), teams = [...new Set((CONFIG && CONFIG.order) || ['A','B','C','D'])].sort();
+    let h = '<h3 style="margin:0 0 6px;font-size:16px">🔔 اعلان شروع شیفت</h3><p style="margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.8">در ساعت شروع شیفت، اگر کاری به شیفت شما ارجاع شده باشد، روی همین گوشی اعلان می‌آید.</p>';
+    if (!supported){
+      h += '<p style="color:var(--red);font-size:13px;line-height:1.8">این مرورگر از اعلان پشتیبانی نمی‌کند. روی آیفون، برنامه را با «Add to Home Screen» نصب کنید و از روی آیکون آن باز کنید (iOS ۱۶٫۴ به بالا).</p><button id="nClose" style="' + bs + ';background:var(--panel-2)">بستن</button>';
+    }else if (Notification.permission === 'denied'){
+      h += '<p style="color:var(--red);font-size:13px;line-height:1.8">اجازه‌ی اعلان برای این سایت مسدود شده است. از تنظیمات مرورگر (قفل کنار آدرس ← Notifications) آن را روی «Allow» بگذارید و دوباره امتحان کنید.</p><button id="nClose" style="' + bs + ';background:var(--panel-2)">بستن</button>';
+    }else if (r){
+      h += '<p style="font-size:14px;line-height:1.9;margin:0 0 12px">✅ فعال است<br>تیم: <b>' + r.team + '</b>' + (r.name ? '<br>نام: <b>' + r.name + '</b>' : '') + '</p><div style="display:flex;gap:8px"><button id="nOff" style="' + bs + ';background:var(--red-dim);color:var(--red)">غیرفعال‌سازی</button><button id="nClose" style="' + bs + ';background:var(--panel-2)">بستن</button></div>';
+    }else{
+      h += '<label style="font-size:13px;color:var(--muted)">شما در کدام تیم هستید؟</label><select id="nTeam" style="' + st + '">' + teams.map(t => '<option value="' + t + '">تیم ' + t + '</option>').join('') + '</select>' +
+           '<label style="font-size:13px;color:var(--muted)">نام شما</label><select id="nName" style="' + st + '"><option value="">—</option>' + SUPERVISORS.map(n => '<option>' + n + '</option>').join('') + '</select>' +
+           '<div style="display:flex;gap:8px"><button id="nOn" style="' + bs + ';background:var(--accent);color:#fff;flex:1">فعال‌سازی اعلان</button><button id="nClose" style="' + bs + ';background:var(--panel-2)">بستن</button></div>';
+    }
+    if (msg) h += '<p id="nMsg" style="margin:12px 0 0;font-size:13px;line-height:1.8;color:' + (msg.err ? 'var(--red)' : 'var(--muted)') + '">' + msg.t + '</p>';
+    box.innerHTML = h;
+    const q = id => box.querySelector('#' + id);
+    if (q('nClose')) q('nClose').onclick = close;
+    if (q('nOn')) q('nOn').onclick = async () => {
+      q('nOn').disabled = true; q('nMsg') || box.insertAdjacentHTML('beforeend', '<p id="nMsg" style="margin:12px 0 0;font-size:13px"></p>'); q('nMsg').textContent = 'در حال فعال‌سازی…';
+      try{ await register(q('nTeam').value, q('nName').value); paintBtn(); render({ t: 'اعلان فعال شد.' }); }
+      catch(e){
+        const m = e.message === 'denied' ? 'اجازه‌ی اعلان داده نشد.' : e.message === 'save' ? 'ثبت در سرور انجام نشد؛ اینترنت را بررسی کنید.' : 'فعال‌سازی ممکن نشد (' + (navigator.onLine === false ? 'اینترنت قطع است' : (e.message || e)) + ').';
+        render({ t: m, err: true });
+      }
+    };
+    if (q('nOff')) q('nOff').onclick = async () => { q('nOff').disabled = true; await unregister(); paintBtn(); render({ t: 'اعلان غیرفعال شد.' }); };
+  }
+  btn.onclick = () => { render(); ov.style.display = 'flex'; };
+  paintBtn();
+  setTimeout(refreshReg, 6000);
+})();
+
 /* ---------- PWA: ثبت Service Worker و دکمه‌ی نصب ---------- */
 (function(){
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
