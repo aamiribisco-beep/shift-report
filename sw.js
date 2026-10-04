@@ -12,7 +12,7 @@ try{
 
 /* Service Worker — Shift Report
    خود برنامه: اول از حافظه (فوری)، هم‌زمان نسخه‌ی تازه در پس‌زمینه گرفته می‌شود و دفعه‌ی بعد اعمال می‌شود. */
-const VER = 'v5';
+const VER = 'v6';
 const SHELL_CACHE = 'shift-shell-' + VER, LIB_CACHE = 'shift-lib-' + VER;
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './icon-180.png'];
 const LIB_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];

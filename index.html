@@ -362,6 +362,18 @@
       </div>
 
       <div class="admin-section">
+        <label>ارجاع کار به شیفت (توسط ادمین)</label>
+        <p class="u-lbl">روز</p>
+        <select id="arDay"></select>
+        <p class="u-lbl">شیفت (تیم و مسئول آن شیفت)</p>
+        <select id="arShift"></select>
+        <p class="u-lbl">شرح کار</p>
+        <input type="text" id="arText" placeholder="شرح کاری که باید در آن شیفت انجام شود">
+        <p class="auth-msg" id="arNote" style="min-height:18px"></p>
+        <div class="btn-row"><button class="btn btn-save" id="arBtn" type="button">ارجاع کار</button></div>
+      </div>
+
+      <div class="admin-section">
         <label>حساب‌های کاربری (نام، نام کاربری، تیم و نقش)</label>
         <div id="usersAdmin"></div>
       </div>
@@ -1769,6 +1781,7 @@ adminBtn.onclick = () => {
   adminBox.style.display = 'block';
   renderPeopleAdmin();
   if (window.renderUsersAdmin) window.renderUsersAdmin();
+  if (window.renderAdminReferral) window.renderAdminReferral();
 };
 function renderPeopleAdmin(){
   const supWrap = document.getElementById('supListAdmin');
@@ -2033,10 +2046,10 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
    REMEMBER_LOGIN = false → هر بار برنامه باز شود رمز می‌خواهد */
 (function(){
   const SEED = [
-    { id:'22861', name:'رضا شاکری',           role:'supervisor', team:'' },
-    { id:'22867', name:'مصطفی جعفری',          role:'supervisor', team:'' },
-    { id:'22975', name:'امیرحسین امیرماهانی', role:'supervisor', team:'' },
-    { id:'22447', name:'امیرحسین احمدی',       role:'supervisor', team:'' },
+    { id:'22861', name:'رضا شاکری',           role:'supervisor', team:'A' },
+    { id:'22867', name:'مصطفی جعفری',          role:'supervisor', team:'B' },
+    { id:'22975', name:'امیرحسین امیرماهانی', role:'supervisor', team:'C' },
+    { id:'22447', name:'امیرحسین احمدی',       role:'supervisor', team:'D' },
     { id:'23008', name:'معین محبی‌زاده',       role:'admin',      team:'' }
   ];
   const DEFAULT_PASS = '1234';
@@ -2071,6 +2084,9 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     if (!gasConfigured()){ try{ a = JSON.parse(localStorage.getItem('shiftpanel:users-list') || 'null'); }catch(e){} }
     else { const res = await gasGet({ action:'get', key:'users-list' }); a = (res && res.value) ? JSON.parse(res.value) : null; }
     if (!validUsers(a)) a = SEED.map(u => Object.assign({}, u));
+    let fixed = false;
+    SEED.forEach(sd => { const x = a.find(u => u.id === sd.id); if (x && sd.team && !x.tf){ x.team = sd.team; x.tf = 1; fixed = true; } });
+    if (fixed && gasConfigured()){ try{ safeSet('users-list', a); }catch(e){} }   // بی‌صدا در شیت ذخیره می‌شود
     try{ localStorage.setItem(UKEY, JSON.stringify(a)); }catch(e){}
     return a;
   }
@@ -2184,7 +2200,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     }
     const snooze = +localStorage.getItem('push-snooze:' + u.id) || 0;
     if (Date.now() - snooze < 86400000) return;   // «بعداً» → یک روز دیگر دوباره می‌پرسد
-    const w = modal('<h2>اعلان شروع شیفت</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای اینکه در ساعت شروع شیفت، کارهای ارجاع‌شده را روی همین گوشی ببینید، اجازه‌ی اعلان بدهید.</p>' +
+    const w = modal('<h2>اعلان شروع شیفت</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای اینکه هر کاری به شیفت شما ارجاع شد همان لحظه (و هنگام شروع شیفت) روی همین گوشی خبردار شوید، اجازه‌ی اعلان بدهید.</p>' +
       '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="pOk">فعال‌سازی اعلان</button><button class="auth-sec" id="pLater">بعداً</button>');
     w.q('pLater').onclick = () => { try{ localStorage.setItem('push-snooze:' + u.id, String(Date.now())); }catch(e){} w.close(); };
     w.q('pOk').onclick = async () => {
@@ -2210,13 +2226,13 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     if (!api || !api.supported) return { t: 'اعلان: این مرورگر پشتیبانی نمی‌کند (روی آیفون برنامه را با «Add to Home Screen» نصب و از روی آیکون باز کنید).', btn: false };
     if (Notification.permission === 'denied') return { t: 'اعلان: اجازه برای این سایت مسدود است؛ از تنظیمات مرورگر روی «Allow» بگذارید.', btn: false };
     const r = api.getReg();
-    if (r && Notification.permission === 'granted' && r.team === CUR.team) return { t: '🔔 اعلان فعال است (تیم ' + CUR.team + ').', btn: false };
-    return { t: 'اعلان روی این گوشی فعال نیست (تیم ' + CUR.team + ').', btn: true };
+    if (r && Notification.permission === 'granted' && r.team === CUR.team) return { t: '🔔 اعلان فعال است — مسئول شیفت ' + CUR.team + '، کارهای ارجاعی همان لحظه برایتان می‌آید.', btn: false };
+    return { t: 'اعلان روی این گوشی فعال نیست (مسئول شیفت ' + CUR.team + ').', btn: true };
   }
   function openUserModal(){
     if (!CUR) return;
     const pl = pushLine();
-    const w = modal('<h2>' + esc(CUR.name) + '</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-8px 0 14px">' + (CUR.role === 'admin' ? 'ادمین' : 'سرشیفت') + (CUR.team ? ' — تیم ' + esc(CUR.team) : '') + '</p>' +
+    const w = modal('<h2>' + esc(CUR.name) + '</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-8px 0 14px">' + (CUR.role === 'admin' ? 'ادمین' : (CUR.team ? 'مسئول شیفت ' + esc(CUR.team) : 'سرشیفت')) + '</p>' +
       '<p style="font-size:13px;line-height:1.9;margin:0 0 6px" id="pLine">' + esc(pl.t) + '</p>' +
       (pl.btn ? '<button class="auth-sec" id="pEnable" style="margin:0 0 14px">فعال‌سازی اعلان</button>' : '<div style="height:10px"></div>') +
       '<label>رمز فعلی</label><input type="password" id="cpOld" autocomplete="current-password">' +
@@ -2252,6 +2268,48 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       }finally{ w.q('cpSave').disabled = false; }
     };
   }
+
+  /* ----- پنل ادمین: ارجاع کار به هر شیفت دلخواه ----- */
+  window.renderAdminReferral = async function(){
+    const daySel = $('arDay'), shSel = $('arShift'), txt = $('arText'), btn = $('arBtn'), note = $('arNote');
+    if (!daySel || !CUR || CUR.role !== 'admin') return;
+    let users = cachedUsers() || SEED; try{ users = await fetchUsers(); }catch(e){}
+    const ownerOf = team => { const u = users.find(x => x.role !== 'admin' && x.team === team); return u ? u.name : ''; };
+    const nfa = n => Number(n).toLocaleString('fa-IR', { useGrouping:false });
+    const say2 = (t, ok) => { note.textContent = t || ''; note.className = 'auth-msg' + (ok ? ' ok' : ''); };
+    const fillShifts = () => {
+      const d = new Date(daySel.value + 'T00:00:00'), prev = shSel.value;
+      const t = computeTeams(d, new Date(CONFIG.refDate + 'T00:00:00'), CONFIG.order);
+      shSel.innerHTML = SHIFT_DEFS.map(def => { const team = t[def.key], o = ownerOf(team); return '<option value="' + def.key + '">' + def.title + ' — تیم ' + team + (o ? ' (' + esc(o) + ')' : '') + '</option>'; }).join('');
+      if (prev) shSel.value = prev;
+    };
+    if (!daySel.options.length){
+      for (let i = 0; i < 8; i++){
+        const d = new Date(today); d.setDate(d.getDate() + i);
+        const j = gregorianToJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+        const wd = d.toLocaleDateString('fa-IR', { weekday:'long' });
+        daySel.add(new Option((i === 0 ? 'امروز — ' : i === 1 ? 'فردا — ' : '') + wd + ' ' + nfa(j[2]) + ' ' + PERSIAN_MONTHS[j[1] - 1] + ' ' + nfa(j[0]), isoDate(d)));
+      }
+      daySel.onchange = fillShifts;
+    }
+    fillShifts();
+    btn.onclick = async () => {
+      const text = txt.value.trim();
+      if (!text){ say2('شرح کار را بنویسید.'); return; }
+      const dateStr = daySel.value, shiftKey = shSel.value, key = referralKeyFor(dateStr, shiftKey);
+      btn.disabled = true; say2('در حال ثبت…', true);
+      try{
+        await loadMonths([ymOf(new Date(dateStr + 'T00:00:00'))]);   // ارجاع‌های قبلی همان شیفت پاک نشوند
+        const updated = (referralsStore[key] || []).concat([text]);
+        const ok = await safeSet(key, updated);
+        if (!ok){ say2('ثبت نشد؛ اینترنت را بررسی کنید و دوباره تلاش کنید.'); return; }
+        referralsStore[key] = updated; txt.value = '';
+        const team = computeTeams(new Date(dateStr + 'T00:00:00'), new Date(CONFIG.refDate + 'T00:00:00'), CONFIG.order)[shiftKey], o = ownerOf(team);
+        say2('ارجاع ثبت شد. اعلان برای ' + (o ? o + ' (' + 'مسئول شیفت ' + team + ')' : 'مسئول شیفت ' + team) + ' حداکثر تا یک دقیقه‌ی دیگر ارسال می‌شود.', true);
+        try{ refreshAllSilently(); }catch(e){}
+      }finally{ btn.disabled = false; }
+    };
+  };
 
   /* ----- پنل ادمین: مدیریت حساب‌ها ----- */
   window.renderUsersAdmin = async function(){
