@@ -2155,7 +2155,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       if (h !== exp){ failed(); return; }
       fails = 0; setSession(id, h); say(''); applyUser(u); hideGate();
       try{ refreshAllSilently(); }catch(e){}
-      afterLogin(u);
+      afterLogin(u, true);   // ورود تازه ← همان لحظه درخواست اعلان
     }finally{ go.disabled = false; }
   }
   go.onclick = doLogin;
@@ -2172,11 +2172,11 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   }
 
   /* ----- تیم و اعلان (بر اساس حساب) ----- */
-  function afterLogin(u){
-    if (u.role !== 'admin' && !u.team){ askTeam(u); return; }
-    syncPush(u);
+  function afterLogin(u, fresh){
+    if (u.role !== 'admin' && !u.team){ askTeam(u, fresh); return; }
+    syncPush(u, fresh);
   }
-  function askTeam(u){
+  function askTeam(u, fresh){
     if (document.getElementById('teamAsk')) return;
     const w = modal('<h2 id="teamAsk">تیم شما کدام است؟</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای دریافت اعلان شروع شیفت، یک‌بار تیم خود را انتخاب کنید. بعداً فقط ادمین می‌تواند آن را عوض کند.</p>' +
       '<select id="tSel" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:14px;background:#fff">' + teamsList().map(t => '<option value="' + t + '">تیم ' + t + '</option>').join('') + '</select>' +
@@ -2187,20 +2187,31 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       const ok = await mutateUsers(list => { const x = list.find(a => a.id === u.id); if (!x) return 'حساب پیدا نشد.'; x.team = team; return null; });
       w.q('tOk').disabled = false;
       if (!ok){ w.m(''); return; }
-      u.team = team; w.close(); syncPush(u);
+      u.team = team; w.close(); syncPush(u, fresh);
     };
   }
-  async function syncPush(u){
-    const api = window.pushApi; if (!api || !api.supported || !u.team) return;
-    if (Notification.permission === 'denied') return;
+  async function syncPush(u, fresh){
+    if (!u.team) return;
+    const api = window.pushApi;
+    if (!api || !api.supported){
+      if (fresh && /iphone|ipad|ipod/i.test(navigator.userAgent)) notice('برای دریافت اعلان روی آیفون، برنامه را با «Add to Home Screen» نصب کنید و از روی آیکونِ نصب‌شده باز کنید.');
+      return;
+    }
+    if (Notification.permission === 'denied'){
+      if (fresh) notice('اجازه‌ی اعلان برای این سایت مسدود است. از تنظیمات مرورگر (قفل کنار آدرس ← Notifications) آن را روی «Allow» بگذارید تا کارهای ارجاعی را همان لحظه ببینید.');
+      return;
+    }
     const reg = api.getReg();
     if (Notification.permission === 'granted'){
       if (!reg || reg.team !== u.team || reg.name !== u.name){ try{ await api.register(u.team, u.name); }catch(e){} }
       return;
     }
-    const snooze = +localStorage.getItem('push-snooze:' + u.id) || 0;
-    if (Date.now() - snooze < 86400000) return;   // «بعداً» → یک روز دیگر دوباره می‌پرسد
-    const w = modal('<h2>اعلان شروع شیفت</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای اینکه هر کاری به شیفت شما ارجاع شد همان لحظه (و هنگام شروع شیفت) روی همین گوشی خبردار شوید، اجازه‌ی اعلان بدهید.</p>' +
+    if (!fresh){   // باز شدن عادی برنامه: اگر «بعداً» زده، یک روز مزاحم نشود؛ ولی در هر ورود تازه همیشه می‌پرسد
+      const snooze = +localStorage.getItem('push-snooze:' + u.id) || 0;
+      if (Date.now() - snooze < 86400000) return;
+    }
+    if (document.getElementById('pushAsk')) return;
+    const w = modal('<h2 id="pushAsk">اعلان شروع شیفت</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای اینکه هر کاری به شیفت شما ارجاع شد همان لحظه (و هنگام شروع شیفت) روی همین گوشی خبردار شوید، اجازه‌ی اعلان بدهید.</p>' +
       '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="pOk">فعال‌سازی اعلان</button><button class="auth-sec" id="pLater">بعداً</button>');
     w.q('pLater').onclick = () => { try{ localStorage.setItem('push-snooze:' + u.id, String(Date.now())); }catch(e){} w.close(); };
     w.q('pOk').onclick = async () => {
@@ -2208,6 +2219,11 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       try{ await api.register(u.team, u.name); w.close(); }
       catch(e){ w.q('pOk').disabled = false; w.m(pushErr(e)); }
     };
+  }
+  function notice(text){
+    if (document.getElementById('noticeBox')) return;
+    const w = modal('<p id="noticeBox" style="font-size:14px;line-height:2;margin:0 0 16px">' + esc(text) + '</p><button class="auth-main" id="nOk">متوجه شدم</button>');
+    w.q('nOk').onclick = w.close;
   }
   function pushErr(e){
     return e.message === 'denied' ? 'اجازه‌ی اعلان داده نشد.' : e.message === 'save' ? 'ثبت در سرور انجام نشد؛ اینترنت را بررسی کنید.' : 'فعال‌سازی ممکن نشد (' + (navigator.onLine === false ? 'اینترنت قطع است' : (e.message || e)) + ').';
