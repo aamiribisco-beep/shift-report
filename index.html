@@ -173,6 +173,8 @@
   button.btn:disabled{ opacity:.8; cursor:default; }
   .btn-spinner{ width:14px; height:14px; border-radius:50%; border:2px solid rgba(255,255,255,.45); border-top-color:#fff;
     display:inline-block; vertical-align:middle; animation:spin .7s linear infinite; }
+  .btn-tick{ display:inline-block; font-size:16px; line-height:1; font-weight:800; animation:tickpop .25s ease-out; }
+  @keyframes tickpop{ from{ transform:scale(.4); opacity:0; } to{ transform:scale(1); opacity:1; } }
   .btn-cancel .btn-spinner{ border-color:var(--line); border-top-color:var(--muted); }
   .btn-save{ background:var(--green); color:#ffffff; }
   .referral-alarm{ display:inline-flex; align-items:center; margin-right:8px; font-size:11px; font-weight:700;
@@ -622,6 +624,8 @@ async function safeSet(key, obj){
    ارسال به سرور در پس‌زمینه انجام می‌شود و اگر نشد (اینترنت ضعیف) در خود گوشی می‌ماند و خودکار دوباره تلاش می‌شود. */
 const OUTBOX_KEY = 'shiftpanel:outbox';
 let obBusy = false, obTimer = null, obFails = 0, obHideTimer = null, obShown = false;
+let obQuiet = 0;            // وقتی >0 است، وضعیت «در حال ارسال/ذخیره شد» داخل خود دکمه نمایش داده می‌شود و نوار پایین صفحه ساکت می‌ماند
+const obWaiters = [];
 const obRecent = {};   // آخرین ارسال‌های موفق (۶۰ ثانیه) تا یک خواندنِ دیررسیده‌ی قدیمی، نتیجه را روی صفحه عقب نبرد
 function obRead(){ try{ return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '{}') || {}; }catch(e){ return {}; } }
 function obWrite(o){ try{ localStorage.setItem(OUTBOX_KEY, JSON.stringify(o)); }catch(e){} }
@@ -641,10 +645,11 @@ function obPaint(failed){
   const n = Object.keys(obRead()).length;
   clearTimeout(obHideTimer);
   if (!n){
-    if (obShown){ obShown = false; el.className = 'ob-pill ok'; el.textContent = '✓ در سرور ذخیره شد'; el.style.display = 'block'; obHideTimer = setTimeout(() => { el.style.display = 'none'; }, 1800); }
+    if (obShown){ obShown = false; if (obQuiet > 0){ el.style.display = 'none'; return; } el.className = 'ob-pill ok'; el.textContent = '✓ در سرور ذخیره شد'; el.style.display = 'block'; obHideTimer = setTimeout(() => { el.style.display = 'none'; }, 1800); }
     else el.style.display = 'none';
     return;
   }
+  if (obQuiet > 0 && !failed){ el.style.display = 'none'; return; }
   obShown = true; el.style.display = 'block';
   if (failed){ el.className = 'ob-pill warn'; el.textContent = '⚠ ارسال به سرور انجام نشد؛ خودکار دوباره تلاش می‌شود. برنامه را نبندید (برای تلاش فوری لمس کنید)'; }
   else { el.className = 'ob-pill'; el.textContent = 'در حال ارسال به سرور…'; }
@@ -658,9 +663,10 @@ async function obFlush(){
       if (!keys.length) break;
       const k = keys[0], e = o[k]; let ok = false;
       try{ const res = await gasPost({ action:'set', key:k, value: JSON.stringify(e.v) }); ok = !!(res && res.ok); }catch(x){}
-      if (!ok){ obFails++; obPaint(true); obTimer = setTimeout(obFlush, Math.min(30000, 4000 * obFails)); return; }
+      if (!ok){ obWaiters.slice().forEach(w => w.res(false)); obFails++; obPaint(true); obTimer = setTimeout(obFlush, Math.min(30000, 4000 * obFails)); return; }
       obRecent[k] = { v: e.v, at: Date.now() };
       const cur = obRead(); if (cur[k] && cur[k].t === e.t){ delete cur[k]; obWrite(cur); }   // اگر در این فاصله دوباره ویرایش شده، نسخه‌ی تازه می‌ماند
+      obWaiters.filter(w => w.key === k && w.t <= e.t).forEach(w => w.res(true));
       obFails = 0;
     }
     obPaint();
@@ -668,10 +674,24 @@ async function obFlush(){
 }
 function queueSet(key, obj){
   try{ localStorage.setItem('shiftpanel:' + key, JSON.stringify(obj)); }catch(e){}
-  if (!gasConfigured()) return;
-  const o = obRead(); o[key] = { v: obj, t: Date.now() }; obWrite(o);
+  if (!gasConfigured()) return null;
+  const t = Date.now(), o = obRead(); o[key] = { v: obj, t: t }; obWrite(o);
   obPaint(); obFlush();
+  return t;
 }
+// منتظر می‌ماند تا همین مقدار به سرور برسد (true) یا خطا/مهلت تمام شود (false). برای نمایش چرخش و تیک سبز داخل دکمه.
+function waitSent(key, t, ms){
+  if (t == null) return Promise.resolve(true);
+  obQuiet++;
+  return new Promise(res => {
+    const w = { key: key, t: t }; let done = false;
+    const tm = setTimeout(() => w.res(false), ms || 10000);
+    w.res = ok => { if (done) return; done = true; clearTimeout(tm); const i = obWaiters.indexOf(w); if (i > -1) obWaiters.splice(i, 1); res(ok); };
+    obWaiters.push(w);
+  }).then(ok => { obQuiet--; if (!obQuiet) obPaint(); return ok; });
+}
+function btnTick(btn){ btn.innerHTML = '<span class="btn-tick">✓</span>'; btn.disabled = true; }
+const sleepMs = ms => new Promise(r => setTimeout(r, ms));
 window.addEventListener('online', () => { obFails = 0; obFlush(); });
 window.addEventListener('beforeunload', e => { if (Object.keys(obRead()).length){ e.preventDefault(); e.returnValue = ''; } });
 setTimeout(() => { if (Object.keys(obRead()).length){ obPaint(); obFlush(); } }, 1500);   // اگر دفعه‌ی قبل چیزی نرسیده بود
@@ -1251,7 +1271,11 @@ function render(){
         const updated = (referralsStore[targetKey] || []).concat([isAdmin ? text + ADMIN_REF_SUFFIX : text]);
         referralsStore[targetKey] = updated;   // همان لحظه ثبت می‌شود؛ ارسال به سرور در پس‌زمینه
         refInput.value = '';
-        queueSet(targetKey, updated);
+        const tRef = queueSet(targetKey, updated);
+        setBtnLoading(referBtn, true);
+        const refOk = await waitSent(targetKey, tRef);
+        if (refOk){ btnTick(referBtn); await sleepMs(700); }
+        setBtnLoading(referBtn, false);
       };
 
       // Keep each activity row's performer options in sync with whoever is
@@ -1480,6 +1504,14 @@ function render(){
       // حذف می‌کند و ردیف را به یک ردیف خالی و عادی (قابل ویرایش) برمی‌گرداند.
       // اگر آن ارجاع هنوز ذخیره نشده بود (از referralsStore می‌آمد)، از آنجا
       // هم پاک می‌شود تا دوباره ظاهر نشود.
+      function updateReferralBadge(){
+        const n = (referralsStore[referralKeyFor(isoDate(selectedDate), def.key)] || []).length;
+        const title = main.querySelector('.row-title'); if (!title) return;
+        let b = title.querySelector('.referral-alarm');
+        if (!n){ if (b) b.remove(); return; }
+        if (!b){ b = document.createElement('span'); b.className = 'referral-alarm'; b.title = 'کار ارجاع‌شده از شیفت قبل'; title.appendChild(b); }
+        b.textContent = n + ' مورد ارجاعی';
+      }
       function bindReferredClearButtons(root){
         root.querySelectorAll('.act-referred-clear-btn').forEach(clearBtn => {
           clearBtn.addEventListener('click', async () => {
@@ -1519,6 +1551,7 @@ function render(){
               referralsStore[ownReferralKey] = updated;
               queueSet(ownReferralKey, updated);
             }
+            updateReferralBadge();   // نوشته‌ی قرمز «N مورد ارجاعی» همان لحظه کم یا حذف شود
           });
         });
       }
@@ -1643,12 +1676,15 @@ function render(){
         const reportKey = keyFor(isoDate(selectedDate), def.key);
         reportsStore[reportKey] = record;
         state[def.key].record = record;
-        queueSet(reportKey, record);
+        setBtnLoading(saveBtn, true);   // چرخش داخل خود دکمه تا رسیدن به سرور
+        const sends = [[reportKey, queueSet(reportKey, record)]];
         const ownReferralKey = referralKeyFor(isoDate(selectedDate), def.key);
         if ((referralsStore[ownReferralKey]||[]).length){
           referralsStore[ownReferralKey] = [];
-          queueSet(ownReferralKey, []);
+          sends.push([ownReferralKey, queueSet(ownReferralKey, [])]);
         }
+        const sentOk = (await Promise.all(sends.map(x => waitSent(x[0], x[1])))).every(Boolean);
+        if (sentOk){ btnTick(saveBtn); await sleepMs(700); }   // تیک سبز داخل دکمه
         render();
         renderCalendarList();
       };
