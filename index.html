@@ -277,6 +277,10 @@
   .u-btns{ display:flex; gap:6px; flex-wrap:wrap; }
   .u-btns .btn{ flex:1; padding:8px 6px; font-size:13px; }
   .u-card .u-lbl{ font-size:12px; margin:0 0 3px; }
+  .adm-row{ border-inline-start-color:var(--accent); }
+  .adm-row .row-title{ font-size:16px; }
+  .adm-body{ border-top:1px solid var(--line); background:var(--panel-2); padding:16px 18px; }
+  .adm-pill{ background:var(--panel-2); color:var(--accent); border:1px solid var(--line); }
 </style>
 </head>
 <body>
@@ -323,7 +327,6 @@
       <div class="icon-row">
         <button class="icon-btn" id="fullscreenBtn" title="تمام‌صفحه">⛶</button>
         <button class="icon-btn" id="refreshBtn" title="دریافت آخرین تغییرات">↻</button>
-        <button class="icon-btn" id="adminBtn" style="display:none">مدیریت</button>
       </div>
       <p class="eyebrow">گزارش شیفت</p>
       <p class="jalali-date" id="jalaliDate">—</p>
@@ -332,10 +335,9 @@
       <div id="viewTagWrap"></div>
     </div>
 
-    <div id="adminBox" class="admin-box" style="display:none">
-      <h3>پنل مدیریت</h3>
+    <div id="adminHolder" style="display:none">
 
-      <div class="admin-section">
+      <div class="admin-section" id="adm-excel">
         <label>خروجی اکسل گزارش‌ها (بازه تاریخ - میلادی)</label>
         <div class="date-range-row">
           <div><input type="date" id="fromDate"></div>
@@ -346,7 +348,7 @@
         </div>
       </div>
 
-      <div class="admin-section">
+      <div class="admin-section" id="adm-rotation">
         <label>ترتیب چرخش تیم‌ها</label>
         <div style="display:flex; gap:8px; margin-bottom:12px;">
           <input type="text" id="refDateInput" placeholder="YYYY-MM-DD تاریخ مرجع" style="margin-bottom:0;">
@@ -361,7 +363,7 @@
         <div class="btn-row"><button class="btn btn-save" id="saveRotationBtn">ذخیره چرخش</button></div>
       </div>
 
-      <div class="admin-section">
+      <div class="admin-section" id="adm-referral">
         <label>ارجاع کار به شیفت (توسط ادمین)</label>
         <p class="u-lbl">روز</p>
         <select id="arDay"></select>
@@ -373,12 +375,12 @@
         <div class="btn-row"><button class="btn btn-save" id="arBtn" type="button">ارجاع کار</button></div>
       </div>
 
-      <div class="admin-section">
+      <div class="admin-section" id="adm-users">
         <label>حساب‌های کاربری (نام، نام کاربری، تیم و نقش)</label>
         <div id="usersAdmin"></div>
       </div>
 
-      <div class="admin-section">
+      <div class="admin-section" id="adm-sup">
         <label>فهرست مسئولین شیفت</label>
         <div class="people-list" id="supListAdmin"></div>
         <div style="display:flex; gap:8px;">
@@ -387,7 +389,7 @@
         </div>
       </div>
 
-      <div class="admin-section">
+      <div class="admin-section" id="adm-staff">
         <label>فهرست پرسنل (حاضرین)</label>
         <div class="people-list" id="staffListAdmin"></div>
         <div style="display:flex; gap:8px;">
@@ -396,12 +398,10 @@
         </div>
       </div>
 
-      <div class="btn-row" style="margin-top:8px;">
-        <button class="btn btn-cancel" id="adminLogoutBtn">بستن پنل مدیریت</button>
-      </div>
     </div>
 
     <div class="rows" id="rows"></div>
+    <div class="rows" id="adminRows" style="margin-top:10px"></div>
   </div>
 </div>
 
@@ -1766,23 +1766,44 @@ fullscreenBtn.onclick = () => {
 document.addEventListener('fullscreenchange', updateFullscreenBtn);
 
 /* ---------------- Admin: login / rotation settings ---------------- */
-const adminBtn = document.getElementById('adminBtn');
-const adminBox = document.getElementById('adminBox');
-
-// دکمه‌ی «مدیریت» فقط برای حساب ادمین نمایش داده می‌شود (اسکریپت ورود در پایین فایل)
-adminBtn.onclick = () => {
-  if (!isAdmin) return;
-  if (adminBox.style.display === 'block'){ adminBox.style.display = 'none'; return; }
+/* ---------------- پنل مدیریت: کارت‌هایی بعد از صبح‌کار / عصرکار / شب‌کار (فقط برای حساب ادمین) ---------------- */
+const adminHolder = document.getElementById('adminHolder');
+const adminRowsEl = document.getElementById('adminRows');
+function fillRotation(){
   document.getElementById('refDateInput').value = CONFIG.refDate;
-  document.getElementById('pos0').value = CONFIG.order[0];
-  document.getElementById('pos1').value = CONFIG.order[1];
-  document.getElementById('pos2').value = CONFIG.order[2];
-  document.getElementById('pos3').value = CONFIG.order[3];
-  adminBox.style.display = 'block';
-  renderPeopleAdmin();
-  if (window.renderUsersAdmin) window.renderUsersAdmin();
-  if (window.renderAdminReferral) window.renderAdminReferral();
-};
+  for (let i = 0; i < 4; i++) document.getElementById('pos' + i).value = CONFIG.order[i];
+}
+const ADMIN_CARDS = [
+  { id:'adm-excel',    title:'خروجی اکسل',           sub:'گزارش‌ها در یک بازه‌ی تاریخ' },
+  { id:'adm-rotation', title:'ترتیب چرخش تیم‌ها',     sub:'تاریخ مرجع و ترتیب تیم‌ها', onOpen: fillRotation },
+  { id:'adm-referral', title:'ارجاع کار به شیفت',     sub:'ثبت کار برای هر شیفت دلخواه', onOpen: () => { if (window.renderAdminReferral) window.renderAdminReferral(); } },
+  { id:'adm-users',    title:'حساب‌های کاربری',       sub:'نام، نام کاربری، تیم، نقش و رمز', onOpen: () => { if (window.renderUsersAdmin) window.renderUsersAdmin(); } },
+  { id:'adm-sup',      title:'فهرست مسئولین شیفت',   sub:'', onOpen: () => renderPeopleAdmin() },
+  { id:'adm-staff',    title:'فهرست پرسنل (حاضرین)', sub:'', onOpen: () => renderPeopleAdmin() },
+];
+function mountAdminRows(){   // با هر تغییر نقش (ورود/خروج) صدا زده می‌شود؛ رندر شیفت‌ها به این بخش دست نمی‌زند
+  if (!isAdmin){
+    adminRowsEl.querySelectorAll('.admin-section').forEach(sec => adminHolder.appendChild(sec));
+    adminRowsEl.innerHTML = '';
+    return;
+  }
+  if (adminRowsEl.children.length) return;
+  ADMIN_CARDS.forEach(c => {
+    const sec = document.getElementById(c.id); if (!sec) return;
+    const row = document.createElement('div'); row.className = 'row adm-row';
+    const main = document.createElement('div'); main.className = 'row-main';
+    main.innerHTML = '<div class="row-left"><div><p class="row-title">' + c.title + '</p>' + (c.sub ? '<p class="row-team">' + c.sub + '</p>' : '') + '</div></div><span class="status-pill adm-pill">باز کردن</span>';
+    const body = document.createElement('div'); body.className = 'adm-body'; body.style.display = 'none';
+    body.appendChild(sec);
+    row.appendChild(main); row.appendChild(body); adminRowsEl.appendChild(row);
+    main.onclick = () => {
+      const open = body.style.display === 'block';
+      body.style.display = open ? 'none' : 'block';
+      main.querySelector('.adm-pill').textContent = open ? 'باز کردن' : 'بستن';
+      if (!open && c.onOpen) c.onOpen();
+    };
+  });
+}
 function renderPeopleAdmin(){
   const supWrap = document.getElementById('supListAdmin');
   const staffWrap = document.getElementById('staffListAdmin');
@@ -1826,7 +1847,6 @@ document.getElementById('addStaffBtn').onclick = async () => {
   renderPeopleAdmin();
 };
 
-document.getElementById('adminLogoutBtn').onclick = () => { adminBox.style.display='none'; };
 
 document.getElementById('saveRotationBtn').onclick = async () => {
   const refDate = document.getElementById('refDateInput').value.trim();
@@ -2040,7 +2060,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
 </script>
 <script>
 /* ---------- حساب‌های کاربری: ورود، رمز، اعلان و مدیریت ----------
-   فهرست کاربران در شیت (کلید users-list) ذخیره می‌شود و ادمین از دکمه‌ی «مدیریت» آن را ویرایش می‌کند.
+   فهرست کاربران در شیت (کلید users-list) ذخیره می‌شود و ادمین از کارت «حساب‌های کاربری» (زیر شیفت‌ها، فقط برای ادمین) آن را ویرایش می‌کند.
    SEED فقط مقدار اولیه است تا وقتی ادمین چیزی ذخیره نکرده. رمز پیش‌فرض ۱۲۳۴؛ رمزها به‌صورت هش در کلید auth:نام‌کاربری.
    REMEMBER_LOGIN = true  → بعد از یک بار ورود، روی همان دستگاه دوباره رمز نمی‌خواهد (تا «خروج»)
    REMEMBER_LOGIN = false → هر بار برنامه باز شود رمز می‌خواهد */
@@ -2122,15 +2142,13 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
 
   function applyUser(u){
     CUR = u; isAdmin = (u.role === 'admin');
-    const ab = $('adminBtn'); if (ab) ab.style.display = isAdmin ? '' : 'none';
-    if (!isAdmin){ const bx = $('adminBox'); if (bx) bx.style.display = 'none'; }
+    try{ mountAdminRows(); }catch(e){}   // کارت‌های مدیریت (بعد از سه شیفت) فقط برای ادمین
     addUserBtn();
   }
   async function logout(t){
     try{ store.removeItem(SKEY); localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY); }catch(e){}
     CUR = null; isAdmin = false;
-    const ab = $('adminBtn'); if (ab) ab.style.display = 'none';
-    const bx = $('adminBox'); if (bx) bx.style.display = 'none';
+    try{ mountAdminRows(); }catch(e){}
     uI.value = ''; showGate(t);
     try{ if (window.pushApi && window.pushApi.getReg()) await Promise.race([window.pushApi.unregister(), new Promise(r => setTimeout(r, 4000))]); }catch(e){}   // این گوشی دیگر اعلان نگیرد
     try{ refreshAllSilently(); }catch(e){}
