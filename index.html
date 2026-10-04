@@ -277,6 +277,9 @@
   .u-btns{ display:flex; gap:6px; flex-wrap:wrap; }
   .u-btns .btn{ flex:1; padding:8px 6px; font-size:13px; }
   .u-card .u-lbl{ font-size:12px; margin:0 0 3px; }
+  .ob-pill{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(14px + env(safe-area-inset-bottom,0px)); z-index:9000; max-width:92vw; padding:9px 16px; border-radius:20px; font-size:13px; font-weight:600; line-height:1.8; text-align:center; background:var(--panel); color:var(--text); border:1px solid var(--line); box-shadow:0 4px 16px rgba(0,0,0,.18); display:none; cursor:default; }
+  .ob-pill.warn{ background:var(--amber-dim); color:#8a5a00; border-color:var(--amber); cursor:pointer; }
+  .ob-pill.ok{ background:var(--green-dim); color:var(--green); border-color:var(--green); }
   .adm-row{ border-inline-start-color:var(--accent); }
   .adm-row .row-title{ font-size:16px; }
   .adm-body{ border-top:1px solid var(--line); background:var(--panel-2); padding:16px 18px; }
@@ -614,6 +617,64 @@ async function safeSet(key, obj){
   catch(e){ /* ignore */ }
   return ok;
 }
+/* ---------- صف ارسال: ثبت فوری روی صفحه، ارسال به سرور در پس‌زمینه ----------
+   دکمه‌های «ثبت گزارش» و «ارجاع» دیگر منتظر جواب Apps Script نمی‌مانند. نتیجه همان لحظه روی صفحه می‌آید،
+   ارسال به سرور در پس‌زمینه انجام می‌شود و اگر نشد (اینترنت ضعیف) در خود گوشی می‌ماند و خودکار دوباره تلاش می‌شود. */
+const OUTBOX_KEY = 'shiftpanel:outbox';
+let obBusy = false, obTimer = null, obFails = 0, obHideTimer = null, obShown = false;
+const obRecent = {};   // آخرین ارسال‌های موفق (۶۰ ثانیه) تا یک خواندنِ دیررسیده‌ی قدیمی، نتیجه را روی صفحه عقب نبرد
+function obRead(){ try{ return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '{}') || {}; }catch(e){ return {}; } }
+function obWrite(o){ try{ localStorage.setItem(OUTBOX_KEY, JSON.stringify(o)); }catch(e){} }
+function applyOutbox(){
+  const put = (k, v) => { if (k.indexOf('report:') === 0) reportsStore[k] = v; else if (k.indexOf('referral:') === 0) referralsStore[k] = v; };
+  const now = Date.now();
+  Object.keys(obRecent).forEach(k => { if (now - obRecent[k].at < 60000) put(k, obRecent[k].v); else delete obRecent[k]; });
+  const o = obRead(); Object.keys(o).forEach(k => put(k, o[k].v));
+}
+function obPaint(failed){
+  let el = document.getElementById('obPill');
+  if (!el){
+    el = document.createElement('div'); el.id = 'obPill'; el.className = 'ob-pill';
+    el.onclick = () => { if (el.classList.contains('warn')){ obFails = 0; obFlush(); } };
+    document.body.appendChild(el);
+  }
+  const n = Object.keys(obRead()).length;
+  clearTimeout(obHideTimer);
+  if (!n){
+    if (obShown){ obShown = false; el.className = 'ob-pill ok'; el.textContent = '✓ در سرور ذخیره شد'; el.style.display = 'block'; obHideTimer = setTimeout(() => { el.style.display = 'none'; }, 1800); }
+    else el.style.display = 'none';
+    return;
+  }
+  obShown = true; el.style.display = 'block';
+  if (failed){ el.className = 'ob-pill warn'; el.textContent = '⚠ ارسال به سرور انجام نشد؛ خودکار دوباره تلاش می‌شود. برنامه را نبندید (برای تلاش فوری لمس کنید)'; }
+  else { el.className = 'ob-pill'; el.textContent = 'در حال ارسال به سرور…'; }
+}
+async function obFlush(){
+  if (obBusy) return;
+  obBusy = true; clearTimeout(obTimer);
+  try{
+    for (;;){
+      const o = obRead(), keys = Object.keys(o);
+      if (!keys.length) break;
+      const k = keys[0], e = o[k]; let ok = false;
+      try{ const res = await gasPost({ action:'set', key:k, value: JSON.stringify(e.v) }); ok = !!(res && res.ok); }catch(x){}
+      if (!ok){ obFails++; obPaint(true); obTimer = setTimeout(obFlush, Math.min(30000, 4000 * obFails)); return; }
+      obRecent[k] = { v: e.v, at: Date.now() };
+      const cur = obRead(); if (cur[k] && cur[k].t === e.t){ delete cur[k]; obWrite(cur); }   // اگر در این فاصله دوباره ویرایش شده، نسخه‌ی تازه می‌ماند
+      obFails = 0;
+    }
+    obPaint();
+  }finally{ obBusy = false; }
+}
+function queueSet(key, obj){
+  try{ localStorage.setItem('shiftpanel:' + key, JSON.stringify(obj)); }catch(e){}
+  if (!gasConfigured()) return;
+  const o = obRead(); o[key] = { v: obj, t: Date.now() }; obWrite(o);
+  obPaint(); obFlush();
+}
+window.addEventListener('online', () => { obFails = 0; obFlush(); });
+window.addEventListener('beforeunload', e => { if (Object.keys(obRead()).length){ e.preventDefault(); e.returnValue = ''; } });
+setTimeout(() => { if (Object.keys(obRead()).length){ obPaint(); obFlush(); } }, 1500);   // اگر دفعه‌ی قبل چیزی نرسیده بود
 function localGetPrefix(prefix){
   const out = {};
   try{
@@ -655,7 +716,7 @@ async function safeGetPrefix(prefix){
 let reportsStore = {}, allLoaded = false;
 async function loadReportsStore(){
   const fresh = await safeGetPrefix('report:');
-  if (fresh) { reportsStore = fresh; allLoaded = true; return; }
+  if (fresh) { reportsStore = fresh; allLoaded = true; applyOutbox(); return; }
   // GAS failed this cycle. If we already have real data on screen, keep
   // it rather than replace it with this device's local cache (which
   // usually doesn't have every other سرشیفت's entries). Only fall back
@@ -670,7 +731,7 @@ async function loadReportsStore(){
 let referralsStore = {};
 async function loadReferralsStore(){
   const fresh = await safeGetPrefix('referral:');
-  if (fresh) { referralsStore = fresh; return; }
+  if (fresh) { referralsStore = fresh; applyOutbox(); return; }
   if (!Object.keys(referralsStore).length) referralsStore = localGetPrefix('referral:');
 }
 
@@ -695,6 +756,7 @@ async function loadMonths(months, force){
     if (ref){ Object.keys(referralsStore).forEach(k => { if (k.indexOf('referral:' + m) === 0) delete referralsStore[k]; }); Object.assign(referralsStore, ref); } else ok = false;
     if (rep && ref) loadedMonths.add(m);
   });
+  applyOutbox();
   return ok;
 }
 // اگر ماه لازم هنوز نیامده، بیش از ۴ ثانیه معطل نمی‌شویم؛ وقتی رسید، صفحه بی‌سروصدا تازه می‌شود
@@ -723,7 +785,7 @@ function loadSnapshot(){
     CONFIG = sn.CONFIG;
     if (Array.isArray(sn.SUPERVISORS) && sn.SUPERVISORS.length) SUPERVISORS = sn.SUPERVISORS;
     if (Array.isArray(sn.STAFF) && sn.STAFF.length) STAFF = sn.STAFF;
-    reportsStore = Object.assign({}, sn.reports || {}); referralsStore = Object.assign({}, sn.referrals || {});
+    reportsStore = Object.assign({}, sn.reports || {}); referralsStore = Object.assign({}, sn.referrals || {}); applyOutbox();
     return true;
   }catch(e){ return false; }
 }
@@ -976,7 +1038,10 @@ function refreshClockUI(dd){
 // Older saved referrals had "(ارجاع شده از شیفت قبل)" baked directly into
 // the description text; strip it so it can be shown as a small caption
 // instead (see activityRowHtml) rather than crowding the input itself.
-const REFERRAL_SUFFIX_RE = /\s*\(ارجاع شده از شیفت قبل\)\s*$/;
+const REFERRAL_SUFFIX_RE = /\s*\((?:ارجاع شده از شیفت قبل|ارجاع شده از سمت ادمین)\)\s*$/;
+// ارجاعِ ادمین با همین عبارت انتهای متن ذخیره می‌شود (فرمت ذخیره همان آرایه‌ی متن می‌ماند و اعلان‌های Notify.gs هم آن را می‌بینند)
+const ADMIN_REF_SUFFIX = ' (ارجاع شده از سمت ادمین)';
+const isAdminReferral = t => /\(ارجاع شده از سمت ادمین\)\s*$/.test(String(t || ''));
 function stripReferralSuffix(desc){ return String(desc||'').replace(REFERRAL_SUFFIX_RE, ''); }
 
 function activityRowHtml(rowIndex, a, availableNames, shiftKey){
@@ -988,12 +1053,14 @@ function activityRowHtml(rowIndex, a, availableNames, shiftKey){
   const adminOverride = referred && isAdmin;
   const locked = referred && !adminOverride;
   const descValue = referred ? stripReferralSuffix(a.desc) : (a.desc||'');
-  return `<tr${referred ? ' class="act-row-referred" data-referred="1"' : ''}>
+  const byAdmin = referred && a.referredBy === 'admin';
+  const refTagText = byAdmin ? 'ارجاع شده از سمت ادمین' : 'ارجاع شده از شیفت قبل';
+  return `<tr${referred ? ' class="act-row-referred" data-referred="1"' + (byAdmin ? ' data-referred-by="admin"' : '') : ''}>
       <td class="act-no">${rowIndex+1}</td>
       <td class="act-time">${timeDropdownHtml(rowIndex, a.timeFrom||'', a.timeTo||'', shiftKey)}</td>
       <td class="act-desc"><div class="act-desc-wrap">
-        <textarea class="act-desc-input" rows="1" ${locked?'readonly title="ارجاع شده از شیفت قبل — قابل ویرایش نیست"':''}>${escapeAttr(descValue)}</textarea>
-        ${referred ? `<span class="act-referred-tag">(ارجاع شده از شیفت قبل)</span>` : ''}
+        <textarea class="act-desc-input" rows="1" ${locked?'readonly title="' + refTagText + ' — قابل ویرایش نیست"':''}>${escapeAttr(descValue)}</textarea>
+        ${referred ? `<span class="act-referred-tag">(${refTagText})</span>` : ''}
         ${adminOverride ? `<button type="button" class="act-referred-clear-btn" title="حذف کار ارجاعی و بازگشت ردیف به حالت عادی">حذف ارجاع</button>` : ''}
       </div></td>
       <td class="act-wo"><input type="text" class="act-wo-input" value="${escapeAttr(a.workOrder||'')}"></td>
@@ -1104,7 +1171,7 @@ function render(){
       // rows at the very top of the table.
       const pendingReferrals = referralsStore[referralKeyFor(isoDate(selectedDate), def.key)] || [];
       const referredActivities = pendingReferrals.map(text => ({
-        desc:text, workOrder:'', workType:'', performedBy:[], timeFrom:'', timeTo:'', referred:true
+        desc:stripReferralSuffix(text), workOrder:'', workType:'', performedBy:[], timeFrom:'', timeTo:'', referred:true, referredBy: isAdminReferral(text) ? 'admin' : ''
       }));
       const baseActivities = prefill?.activities || [];
       const initialActivities = referredActivities.length ? referredActivities.concat(baseActivities) : baseActivities;
@@ -1172,19 +1239,19 @@ function render(){
         const text = refInput.value.trim();
         if (!text) return;
         const referBtn = document.getElementById(`referBtn-${def.key}`);
-        setBtnLoading(referBtn, true);
         const target = nextShiftOf(isoDate(selectedDate), def.key);
         const targetKey = referralKeyFor(target.dateStr, target.shiftKey);
-        await loadMonths([ymOf(new Date(target.dateStr + 'T00:00:00'))]);   // ماه مقصد (ممکن است ماه بعد باشد) حتماً خوانده شود تا ارجاع‌های قبلی پاک نشوند
-        const updated = (referralsStore[targetKey] || []).concat([text]);
-        const ok = await safeSet(targetKey, updated);
-        setBtnLoading(referBtn, false);
-        if (ok){
-          referralsStore[targetKey] = updated;
-          refInput.value = '';
-        } else {
-          alert('ارجاع ذخیره نشد. لطفاً دوباره تلاش کنید.');
+        const tm = ymOf(new Date(target.dateStr + 'T00:00:00'));
+        if (!allLoaded && !loadedMonths.has(tm)){   // فقط اگر ماه مقصد هنوز خوانده نشده (مثلاً ماه بعد) منتظر می‌مانیم
+          setBtnLoading(referBtn, true);
+          const okLoad = await loadMonths([tm]);
+          setBtnLoading(referBtn, false);
+          if (!okLoad){ alert('اتصال برقرار نشد؛ ارجاع ثبت نشد. دوباره تلاش کنید.'); return; }
         }
+        const updated = (referralsStore[targetKey] || []).concat([isAdmin ? text + ADMIN_REF_SUFFIX : text]);
+        referralsStore[targetKey] = updated;   // همان لحظه ثبت می‌شود؛ ارسال به سرور در پس‌زمینه
+        refInput.value = '';
+        queueSet(targetKey, updated);
       };
 
       // Keep each activity row's performer options in sync with whoever is
@@ -1422,6 +1489,7 @@ function render(){
 
             tr.classList.remove('act-row-referred');
             tr.removeAttribute('data-referred');
+            tr.removeAttribute('data-referred-by');
             descInput.readOnly = false;
             descInput.value = '';
             descInput.title = '';
@@ -1445,11 +1513,11 @@ function render(){
 
             const ownReferralKey = referralKeyFor(isoDate(selectedDate), def.key);
             const pending = referralsStore[ownReferralKey] || [];
-            const idx = pending.indexOf(originalText);
+            const idx = pending.findIndex(x => stripReferralSuffix(x) === originalText);
             if (idx > -1){
               const updated = pending.slice(0, idx).concat(pending.slice(idx+1));
-              const ok = await safeSet(ownReferralKey, updated);
-              if (ok) referralsStore[ownReferralKey] = updated;
+              referralsStore[ownReferralKey] = updated;
+              queueSet(ownReferralKey, updated);
             }
           });
         });
@@ -1523,6 +1591,7 @@ function render(){
             timeFrom,
             timeTo,
             referred,
+            referredBy: referred ? ((activityTrs[i] && activityTrs[i].dataset.referredBy) || '') : '',
           });
         }
         const hasAnyActivity = activities.some(a=>a.desc||a.workOrder||a.workType||a.performedBy.length||a.timeFrom||a.timeTo);
@@ -1570,22 +1639,18 @@ function render(){
         }
         const notesVal = document.getElementById(`notes-${def.key}`).value.trim();
         const record = { supervisor, attendees: attendeesNow, activities, consumables, notes: notesVal, team:s.team, submittedAt:new Date().toISOString() };
-        setBtnLoading(saveBtn, true);
-        const ok = await safeSet(keyFor(isoDate(selectedDate), def.key), record);
-        setBtnLoading(saveBtn, false);
-        if (ok){
-          reportsStore[keyFor(isoDate(selectedDate), def.key)] = record;
-          state[def.key].record = record;
-          const ownReferralKey = referralKeyFor(isoDate(selectedDate), def.key);
-          if ((referralsStore[ownReferralKey]||[]).length){
-            const cleared = await safeSet(ownReferralKey, []);
-            if (cleared) referralsStore[ownReferralKey] = [];
-          }
-          render();
-          refreshCalendarDay(isoDate(selectedDate));
-        } else {
-          alert('ثبت گزارش ناموفق بود. لطفاً دوباره تلاش کنید.');
+        // ثبت فوری روی صفحه؛ ارسال به سرور در پس‌زمینه (با تلاش مجدد خودکار و نمایش وضعیت پایین صفحه)
+        const reportKey = keyFor(isoDate(selectedDate), def.key);
+        reportsStore[reportKey] = record;
+        state[def.key].record = record;
+        queueSet(reportKey, record);
+        const ownReferralKey = referralKeyFor(isoDate(selectedDate), def.key);
+        if ((referralsStore[ownReferralKey]||[]).length){
+          referralsStore[ownReferralKey] = [];
+          queueSet(ownReferralKey, []);
         }
+        render();
+        renderCalendarList();
       };
     }
 
@@ -1606,7 +1671,7 @@ function render(){
                 const performedByStr = normalizePerformedBy(a).join('، ');
                 return `<li>
                   ${timeStr ? `<span class="submitted-act-time">${escapeAttr(timeStr)}</span>` : ''}
-                  <span class="submitted-act-desc">${escapeAttr(stripReferralSuffix(a.desc)||'-')}</span>
+                  <span class="submitted-act-desc">${escapeAttr(stripReferralSuffix(a.desc)||'-')}</span>${a.referredBy === 'admin' ? '<span class="act-referred-tag"> (ارجاع شده از سمت ادمین)</span>' : ''}
                   ${performedByStr ? `<span class="submitted-act-by"> — ${escapeAttr(performedByStr)}</span>` : ''}
                 </li>`;
               }).join('')}
@@ -1683,6 +1748,7 @@ async function refreshCalendarDay(dateStr){
   // Re-pull just this one day's three keys and merge into the shared cache.
   const fresh = await safeGetPrefix(`report:${dateStr}`);
   if (fresh) Object.assign(reportsStore, fresh);
+  applyOutbox();
   renderCalendarList();
 }
 
@@ -1775,8 +1841,8 @@ function fillRotation(){
 }
 const ADMIN_CARDS = [
   { id:'adm-excel',    title:'خروجی اکسل',           sub:'گزارش‌ها در یک بازه‌ی تاریخ' },
-  { id:'adm-rotation', title:'ترتیب چرخش تیم‌ها',     sub:'تاریخ مرجع و ترتیب تیم‌ها', onOpen: fillRotation },
   { id:'adm-referral', title:'ارجاع کار به شیفت',     sub:'ثبت کار برای هر شیفت دلخواه', onOpen: () => { if (window.renderAdminReferral) window.renderAdminReferral(); } },
+  { id:'adm-rotation', title:'ترتیب چرخش تیم‌ها',     sub:'تاریخ مرجع و ترتیب تیم‌ها', onOpen: fillRotation },
   { id:'adm-users',    title:'حساب‌های کاربری',       sub:'نام، نام کاربری، تیم، نقش و رمز', onOpen: () => { if (window.renderUsersAdmin) window.renderUsersAdmin(); } },
   { id:'adm-sup',      title:'فهرست مسئولین شیفت',   sub:'', onOpen: () => renderPeopleAdmin() },
   { id:'adm-staff',    title:'فهرست پرسنل (حاضرین)', sub:'', onOpen: () => renderPeopleAdmin() },
@@ -1899,7 +1965,7 @@ document.getElementById('exportBtn').onclick = async () => {
         acts.forEach((a, idx) => {
           const performedByStr = normalizePerformedBy(a).join('، ');
           const timeStr = (a.timeFrom && a.timeTo) ? `${a.timeFrom} - ${a.timeTo}` : '';
-          rows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', attendeesStr, 'ثبت شده', idx+1, timeStr, a.desc||'', a.workOrder||'', a.workType||'', performedByStr]);
+          rows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', attendeesStr, 'ثبت شده', idx+1, timeStr, (a.desc||'') + (a.referredBy === 'admin' ? ADMIN_REF_SUFFIX : ''), a.workOrder||'', a.workType||'', performedByStr]);
         });
       }
     }
@@ -2333,11 +2399,11 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       const dateStr = daySel.value, shiftKey = shSel.value, key = referralKeyFor(dateStr, shiftKey);
       btn.disabled = true; say2('در حال ثبت…', true);
       try{
-        await loadMonths([ymOf(new Date(dateStr + 'T00:00:00'))]);   // ارجاع‌های قبلی همان شیفت پاک نشوند
-        const updated = (referralsStore[key] || []).concat([text]);
-        const ok = await safeSet(key, updated);
-        if (!ok){ say2('ثبت نشد؛ اینترنت را بررسی کنید و دوباره تلاش کنید.'); return; }
+        const okLoad = await loadMonths([ymOf(new Date(dateStr + 'T00:00:00'))]);   // ارجاع‌های قبلی همان شیفت پاک نشوند (اگر ماه قبلاً خوانده شده باشد فوری است)
+        if (!okLoad){ say2('اتصال برقرار نشد؛ دوباره تلاش کنید.'); return; }
+        const updated = (referralsStore[key] || []).concat([text + ADMIN_REF_SUFFIX]);
         referralsStore[key] = updated; txt.value = '';
+        queueSet(key, updated);   // ارسال به سرور در پس‌زمینه
         const team = computeTeams(new Date(dateStr + 'T00:00:00'), new Date(CONFIG.refDate + 'T00:00:00'), CONFIG.order)[shiftKey], o = ownerOf(team);
         say2('ارجاع ثبت شد. اعلان برای ' + (o ? o + ' (' + 'مسئول شیفت ' + team + ')' : 'مسئول شیفت ' + team) + ' حداکثر تا یک دقیقه‌ی دیگر ارسال می‌شود.', true);
         try{ refreshAllSilently(); }catch(e){}
