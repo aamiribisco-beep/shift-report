@@ -282,6 +282,9 @@
   .ob-pill{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(14px + env(safe-area-inset-bottom,0px)); z-index:9000; max-width:92vw; padding:9px 16px; border-radius:20px; font-size:13px; font-weight:600; line-height:1.8; text-align:center; background:var(--panel); color:var(--text); border:1px solid var(--line); box-shadow:0 4px 16px rgba(0,0,0,.18); display:none; cursor:default; }
   .ob-pill.warn{ background:var(--amber-dim); color:#8a5a00; border-color:var(--amber); cursor:pointer; }
   .ob-pill.ok{ background:var(--green-dim); color:var(--green); border-color:var(--green); }
+  .net-bar{ position:fixed; top:0; left:0; right:0; z-index:9500; padding:calc(9px + env(safe-area-inset-top,0px)) 14px 9px; font-size:13.5px; font-weight:700; line-height:1.7; text-align:center; background:var(--red); color:#fff; box-shadow:0 2px 12px rgba(0,0,0,.25); transform:translateY(-110%); transition:transform .25s ease; pointer-events:none; }
+  .net-bar.show{ transform:translateY(0); pointer-events:auto; }
+  .net-bar.back{ background:var(--green); }
   .adm-row{ border-inline-start-color:var(--accent); }
   .adm-row .row-title{ font-size:16px; }
   .adm-body{ border-top:1px solid var(--line); background:var(--panel-2); padding:16px 18px; }
@@ -651,7 +654,7 @@ function obPaint(failed){
   }
   if (obQuiet > 0 && !failed){ el.style.display = 'none'; return; }
   obShown = true; el.style.display = 'block';
-  if (failed){ el.className = 'ob-pill warn'; el.textContent = '⚠ ارسال به سرور انجام نشد؛ خودکار دوباره تلاش می‌شود. برنامه را نبندید (برای تلاش فوری لمس کنید)'; }
+  if (failed){ el.className = 'ob-pill warn'; el.textContent = (navigator.onLine === false ? '⚠ اینترنت قطع است؛ ' : '⚠ ارسال به سرور انجام نشد؛ ') + 'خودکار دوباره تلاش می‌شود. برنامه را نبندید (برای تلاش فوری لمس کنید)'; }
   else { el.className = 'ob-pill'; el.textContent = 'در حال ارسال به سرور…'; }
 }
 async function obFlush(){
@@ -693,6 +696,30 @@ function waitSent(key, t, ms){
 function btnTick(btn){ btn.innerHTML = '<span class="btn-tick">✓</span>'; btn.disabled = true; }
 const sleepMs = ms => new Promise(r => setTimeout(r, ms));
 window.addEventListener('online', () => { obFails = 0; obFlush(); });
+
+/* ---------- هشدار قطع اینترنت ---------- */
+(function(){
+  let bar = null, hideT = null, wasOffline = false;
+  function el(){
+    if (!bar){ bar = document.createElement('div'); bar.id = 'netBar'; bar.className = 'net-bar'; bar.setAttribute('role','alert'); document.body.appendChild(bar); }
+    return bar;
+  }
+  function showOffline(){
+    wasOffline = true; clearTimeout(hideT);
+    const b = el(); b.className = 'net-bar show';
+    b.textContent = '⚠ اینترنت قطع است. تغییرات در گوشی ذخیره می‌شود و با وصل شدن اینترنت ارسال می‌شود.';
+  }
+  function showOnline(){
+    if (!wasOffline) return;
+    wasOffline = false; clearTimeout(hideT);
+    const b = el(); b.className = 'net-bar back show'; b.textContent = '✓ اینترنت وصل شد';
+    hideT = setTimeout(() => { b.classList.remove('show'); }, 2500);
+  }
+  window.addEventListener('offline', showOffline);
+  window.addEventListener('online', showOnline);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { if (navigator.onLine === false) showOffline(); });
+  else if (navigator.onLine === false) showOffline();
+})();
 window.addEventListener('beforeunload', e => { if (Object.keys(obRead()).length){ e.preventDefault(); e.returnValue = ''; } });
 setTimeout(() => { if (Object.keys(obRead()).length){ obPaint(); obFlush(); } }, 1500);   // اگر دفعه‌ی قبل چیزی نرسیده بود
 function localGetPrefix(prefix){
