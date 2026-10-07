@@ -2353,8 +2353,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     if (document.getElementById('teamAsk')) return;
     const w = modal('<h2 id="teamAsk">تیم شما کدام است؟</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای دریافت اعلان شروع شیفت، یک‌بار تیم خود را انتخاب کنید. بعداً فقط ادمین می‌تواند آن را عوض کند.</p>' +
       '<select id="tSel" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:14px;background:#fff">' + teamsList().map(t => '<option value="' + t + '">تیم ' + t + '</option>').join('') + '</select>' +
-      '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="tOk">تأیید</button><button class="auth-sec" id="tLater">بعداً</button>');
-    w.q('tLater').onclick = w.close;
+      '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="tOk">تأیید</button>');
     w.q('tOk').onclick = async () => {
       const team = w.q('tSel').value; w.q('tOk').disabled = true; w.m('در حال ذخیره…', true);
       const ok = await mutateUsers(list => { const x = list.find(a => a.id === u.id); if (!x) return 'حساب پیدا نشد.'; x.team = team; return null; });
@@ -2363,36 +2362,56 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       u.team = team; w.close(); syncPush(u, fresh);
     };
   }
+  const pushTeam = u => u.team || (u.role === 'admin' ? 'admin' : '');   // ادمین تیم ندارد؛ با برچسب admin ثبت می‌شود
+  const isStandalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   async function syncPush(u, fresh){
-    if (!u.team) return;
+    const pt = pushTeam(u);
+    if (!pt) return;
     const api = window.pushApi;
     if (!api || !api.supported){
-      if (fresh && /iphone|ipad|ipod/i.test(navigator.userAgent)) notice('برای دریافت اعلان روی آیفون، برنامه را با «Add to Home Screen» نصب کنید و از روی آیکونِ نصب‌شده باز کنید.');
+      if (fresh && /iphone|ipad|ipod/i.test(navigator.userAgent) && !isStandalone()) notice('برای دریافت اعلان روی آیفون، برنامه را با «Add to Home Screen» نصب کنید و از روی آیکونِ نصب‌شده باز کنید.');
       return;
-    }
-    if (Notification.permission === 'denied'){
-      if (fresh) notice('اجازه‌ی اعلان برای این سایت مسدود است. از تنظیمات مرورگر (قفل کنار آدرس ← Notifications) آن را روی «Allow» بگذارید تا کارهای ارجاعی را همان لحظه ببینید.');
-      return;
-    }
-    const reg = api.getReg();
-    if (Notification.permission === 'granted'){
-      if (!reg || reg.team !== u.team || reg.name !== u.name){ try{ await api.register(u.team, u.name); }catch(e){} }
-      return;
-    }
-    if (!fresh){   // باز شدن عادی برنامه: اگر «بعداً» زده، یک روز مزاحم نشود؛ ولی در هر ورود تازه همیشه می‌پرسد
-      const snooze = +localStorage.getItem('push-snooze:' + u.id) || 0;
-      if (Date.now() - snooze < 86400000) return;
     }
     if (document.getElementById('pushAsk')) return;
-    const w = modal('<h2 id="pushAsk">اعلان شروع شیفت</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای اینکه هر کاری به شیفت شما ارجاع شد همان لحظه (و هنگام شروع شیفت) روی همین گوشی خبردار شوید، اجازه‌ی اعلان بدهید.</p>' +
-      '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="pOk">فعال‌سازی اعلان</button><button class="auth-sec" id="pLater">بعداً</button>');
-    w.q('pLater').onclick = () => { try{ localStorage.setItem('push-snooze:' + u.id, String(Date.now())); }catch(e){} w.close(); };
-    w.q('pOk').onclick = async () => {
-      w.q('pOk').disabled = true; w.m('در حال فعال‌سازی…', true);
-      try{ await api.register(u.team, u.name); w.close(); }
-      catch(e){ w.q('pOk').disabled = false; w.m(pushErr(e)); }
-    };
+    if (Notification.permission === 'granted'){
+      const reg = api.getReg();
+      if (!reg || reg.team !== pt || reg.name !== u.name){ try{ await api.register(pt, u.name); }catch(e){} }
+      return;
+    }
+    pushGate(u, pt, api);   // اجازه داده نشده: تا فعال نشود، برنامه قابل استفاده نیست
   }
+  // پنجره‌ی اجباری اعلان: بسته‌شدنی نیست؛ فقط با فعال‌سازی اعلان (یا خروج از حساب) از بین می‌رود
+  function pushGate(u, pt, api){
+    const adm = u.role === 'admin';
+    const w = modal('<h2 id="pushAsk">فعال‌سازی اعلان (الزامی)</h2><p id="pgTxt" style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px"></p>' +
+      '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="pOk"></button><button class="auth-sec" id="pOut">خروج از حساب</button>');
+    let busy = false, done = false, autoTried = false;
+    const why = adm ? 'برای استفاده از برنامه باید اعلان را فعال کنید تا اگر گزارش شیفتی تا پایان مهلت ثبت نشد، روی همین گوشی به شما خبر داده شود.'
+                    : 'برای استفاده از برنامه باید اعلان را فعال کنید تا کارهای ارجاعی و یادآوری شروع شیفت را روی همین گوشی دریافت کنید.';
+    const deniedTxt = 'اجازه‌ی اعلان برای این برنامه مسدود شده است. از تنظیمات گوشی (Settings ← Notifications ← همین برنامه) یا قفل کنار آدرس مرورگر، اعلان را روی «Allow» بگذارید و به برنامه برگردید؛ به‌محض فعال شدن، خودکار ادامه می‌دهد.';
+    const paint = () => { const d = Notification.permission === 'denied'; w.q('pgTxt').textContent = d ? deniedTxt : why; w.q('pOk').textContent = d ? 'بررسی دوباره' : 'فعال‌سازی اعلان'; };
+    const finish = () => { done = true; clearInterval(timer); w.close(); };
+    const run = async () => {
+      if (busy || done) return; busy = true; w.q('pOk').disabled = true; w.m('در حال فعال‌سازی…', true);
+      try{ await api.register(pt, u.name); finish(); }
+      catch(e){ w.m(pushErr(e)); paint(); }
+      finally{ busy = false; if (!done) w.q('pOk').disabled = false; }
+    };
+    w.q('pOk').onclick = () => {
+      if (Notification.permission === 'denied'){ paint(); w.m('اعلان هنوز مسدود است. بعد از تغییر تنظیمات دوباره امتحان کنید.'); return; }
+      run();
+    };
+    w.q('pOut').onclick = () => { finish(); logout(); };
+    const timer = setInterval(() => {
+      if (done) return;
+      if (!CUR || CUR.id !== u.id){ finish(); return; }
+      paint();
+      if (Notification.permission === 'granted' && !busy && !autoTried){ autoTried = true; run(); }   // کاربر اجازه را از تنظیمات داده است
+    }, 1500);
+    paint();
+  }
+  // اگر کاربر وسط کار اجازه را از تنظیمات برداشت، با برگشتن به برنامه دوباره الزامی می‌شود
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && typeof CUR !== 'undefined' && CUR) syncPush(CUR, false); });
   function notice(text){
     if (document.getElementById('noticeBox')) return;
     const w = modal('<p id="noticeBox" style="font-size:14px;line-height:2;margin:0 0 16px">' + esc(text) + '</p><button class="auth-main" id="nOk">متوجه شدم</button>');
@@ -2411,12 +2430,13 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   }
   function pushLine(){
     const api = window.pushApi;
-    if (!CUR.team) return { t: CUR.role === 'admin' ? 'اعلان: برای این حساب تیمی تعیین نشده است.' : 'اعلان: تیم شما هنوز انتخاب نشده است.', btn: false };
+    const pt = pushTeam(CUR);
+    if (!pt) return { t: 'اعلان: تیم شما هنوز انتخاب نشده است.', btn: false };
     if (!api || !api.supported) return { t: 'اعلان: این مرورگر پشتیبانی نمی‌کند (روی آیفون برنامه را با «Add to Home Screen» نصب و از روی آیکون باز کنید).', btn: false };
     if (Notification.permission === 'denied') return { t: 'اعلان: اجازه برای این سایت مسدود است؛ از تنظیمات مرورگر روی «Allow» بگذارید.', btn: false };
     const r = api.getReg();
-    if (r && Notification.permission === 'granted' && r.team === CUR.team) return { t: '🔔 اعلان فعال است — مسئول شیفت ' + CUR.team + '، کارهای ارجاعی همان لحظه برایتان می‌آید.', btn: false };
-    return { t: 'اعلان روی این گوشی فعال نیست (مسئول شیفت ' + CUR.team + ').', btn: true };
+    if (r && Notification.permission === 'granted' && r.team === pt) return { t: CUR.role === 'admin' ? '🔔 اعلان فعال است — اگر گزارش یکی از شیفت‌ها تا پایان مهلت ثبت نشود به شما خبر داده می‌شود.' : '🔔 اعلان فعال است — مسئول شیفت ' + CUR.team + '، کارهای ارجاعی همان لحظه برایتان می‌آید.', btn: false };
+    return { t: CUR.role === 'admin' ? 'اعلان گزارش ثبت‌نشده روی این گوشی فعال نیست.' : 'اعلان روی این گوشی فعال نیست (مسئول شیفت ' + CUR.team + ').', btn: true };
   }
   function openUserModal(){
     if (!CUR) return;
@@ -2435,7 +2455,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     w.q('cpOut').onclick = () => { w.close(); logout(); };
     if (w.q('pEnable')) w.q('pEnable').onclick = async () => {
       w.q('pEnable').disabled = true;
-      try{ await window.pushApi.register(CUR.team, CUR.name); const n = pushLine(); w.q('pLine').textContent = n.t; w.q('pEnable').remove(); w.m(''); }
+      try{ await window.pushApi.register(pushTeam(CUR), CUR.name); const n = pushLine(); w.q('pLine').textContent = n.t; w.q('pEnable').remove(); w.m(''); }
       catch(e){ w.q('pEnable').disabled = false; w.m(pushErr(e)); }
     };
     w.q('cpSave').onclick = async () => {
