@@ -707,7 +707,7 @@ window.addEventListener('online', () => { obFails = 0; obFlush(); });
   function showOffline(){
     wasOffline = true; clearTimeout(hideT);
     const b = el(); b.className = 'net-bar show';
-    b.textContent = '⚠ اینترنت قطع است. تغییرات در گوشی ذخیره می‌شود و با وصل شدن اینترنت ارسال می‌شود.';
+    b.textContent = '⚠ اینترنت قطع است. تغییرات روی همین دستگاه ذخیره می‌شود و با وصل شدن اینترنت ارسال می‌شود.';
   }
   function showOnline(){
     if (!wasOffline) return;
