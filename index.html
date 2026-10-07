@@ -562,6 +562,8 @@ function fetchWithTimeout(url, options, timeoutMs){
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs || 15000);
   return fetch(url, Object.assign({}, options, { signal: controller.signal }))
+    .then(r => { if (window.netReport) window.netReport(true); return r; },
+          e => { if (window.netReport) window.netReport(false); throw e; })
     .finally(() => clearTimeout(timer));
 }
 
@@ -654,7 +656,7 @@ function obPaint(failed){
   }
   if (obQuiet > 0 && !failed){ el.style.display = 'none'; return; }
   obShown = true; el.style.display = 'block';
-  if (failed){ el.className = 'ob-pill warn'; el.textContent = (navigator.onLine === false ? '⚠ اینترنت قطع است؛ ' : '⚠ ارسال به سرور انجام نشد؛ ') + 'خودکار دوباره تلاش می‌شود. برنامه را نبندید (برای تلاش فوری لمس کنید)'; }
+  if (failed){ el.className = 'ob-pill warn'; el.textContent = ((navigator.onLine === false || window.__netOffline) ? '⚠ اینترنت قطع است؛ ' : '⚠ ارسال به سرور انجام نشد؛ ') + 'خودکار دوباره تلاش می‌شود. برنامه را نبندید (برای تلاش فوری لمس کنید)'; }
   else { el.className = 'ob-pill'; el.textContent = 'در حال ارسال به سرور…'; }
 }
 async function obFlush(){
@@ -697,28 +699,52 @@ function btnTick(btn){ btn.innerHTML = '<span class="btn-tick">✓</span>'; btn.
 const sleepMs = ms => new Promise(r => setTimeout(r, ms));
 window.addEventListener('online', () => { obFails = 0; obFlush(); });
 
-/* ---------- هشدار قطع اینترنت ---------- */
+/* ---------- هشدار قطع اینترنت ----------
+   navigator.onLine فقط می‌گوید کارت شبکه به مودم/شبکه‌ی داخلی وصل است، نه اینکه اینترنت واقعاً هست.
+   برای همین هر چند ثانیه یک بار واقعاً به سرور گوگل (همان جایی که برنامه کار می‌کند) سر می‌زنیم. */
+window.__netOffline = false;
 (function(){
-  let bar = null, hideT = null, wasOffline = false;
+  const PROBE_URL = 'https://script.google.com/favicon.ico';
+  let bar = null, hideT = null, shown = false, fails = 0, running = false;
   function el(){
     if (!bar){ bar = document.createElement('div'); bar.id = 'netBar'; bar.className = 'net-bar'; bar.setAttribute('role','alert'); document.body.appendChild(bar); }
     return bar;
   }
   function showOffline(){
-    wasOffline = true; clearTimeout(hideT);
+    window.__netOffline = true; shown = true; clearTimeout(hideT);
     const b = el(); b.className = 'net-bar show';
     b.textContent = '⚠ اینترنت قطع است. تغییرات روی همین دستگاه ذخیره می‌شود و با وصل شدن اینترنت ارسال می‌شود.';
   }
   function showOnline(){
-    if (!wasOffline) return;
-    wasOffline = false; clearTimeout(hideT);
+    window.__netOffline = false; fails = 0;
+    if (!shown) return;
+    shown = false; clearTimeout(hideT);
     const b = el(); b.className = 'net-bar back show'; b.textContent = '✓ اینترنت وصل شد';
     hideT = setTimeout(() => { b.classList.remove('show'); }, 2500);
+    if (typeof obFlush === 'function'){ obFails = 0; obFlush(); }
   }
-  window.addEventListener('offline', showOffline);
-  window.addEventListener('online', showOnline);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { if (navigator.onLine === false) showOffline(); });
-  else if (navigator.onLine === false) showOffline();
+  async function probeOnce(){
+    const c = new AbortController(), t = setTimeout(() => c.abort(), 6000);
+    try{ await fetch(PROBE_URL + '?_=' + Date.now(), { mode:'no-cors', cache:'no-store', signal:c.signal }); return true; }
+    catch(e){ return false; }
+    finally{ clearTimeout(t); }
+  }
+  async function check(){
+    if (running) return; running = true;
+    try{
+      const ok = navigator.onLine === false ? false : await probeOnce();
+      if (ok) showOnline();
+      else { fails++; if (fails >= 2 || navigator.onLine === false) showOffline(); else setTimeout(check, 1500); }
+    }finally{ running = false; }
+  }
+  // برنامه خودش هم خبر می‌دهد: موفقیت یک درخواست = اینترنت هست، شکست = بلافاصله بررسی کن
+  window.netReport = ok => { if (ok){ if (window.__netOffline) showOnline(); } else check(); };
+  window.addEventListener('offline', () => { fails = 2; showOffline(); });
+  window.addEventListener('online', check);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  setInterval(() => { if (!document.hidden) check(); }, 8000);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', check);
+  else check();
 })();
 window.addEventListener('beforeunload', e => { if (Object.keys(obRead()).length){ e.preventDefault(); e.returnValue = ''; } });
 setTimeout(() => { if (Object.keys(obRead()).length){ obPaint(); obFlush(); } }, 1500);   // اگر دفعه‌ی قبل چیزی نرسیده بود
