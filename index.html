@@ -26,6 +26,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap');
 
@@ -346,14 +347,14 @@
     <div id="adminHolder" style="display:none">
 
       <div class="admin-section" id="adm-excel">
-        <label>خروجی اکسل گزارش‌ها (بازه تاریخ - میلادی)</label>
+        <label>خروجی اکسل گزارش‌ها (بازه تاریخ - شمسی)</label>
         <div class="date-range-row">
           <div><input type="date" id="fromDate"></div>
           <div><input type="date" id="toDate"></div>
         </div>
         <div class="date-range-row" style="margin-top:8px">
-          <div><select id="xfTeam"><option value="">همه‌ی تیم‌ها</option><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
-          <div><select id="xfShift"><option value="">همه‌ی شیفت‌ها</option><option value="day">صبح‌کار</option><option value="evening">عصرکار</option><option value="night">شب‌کار</option></select></div>
+          <div><select id="xfTeam"><option value="">همه‌ی شیفت‌ها</option><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
+          <div><select id="xfShift"><option value="">همه‌ی نوبت‌ها</option><option value="day">صبح‌کار</option><option value="evening">عصرکار</option><option value="night">شب‌کار</option></select></div>
         </div>
         <div class="date-range-row" style="margin-top:8px">
           <div><select id="xfType"><option value="">همه‌ی انواع کار</option><option>PM</option><option>CM</option><option>EM</option></select></div>
@@ -365,9 +366,9 @@
       </div>
 
       <div class="admin-section" id="adm-rotation">
-        <label>ترتیب چرخش تیم‌ها</label>
+        <label>ترتیب چرخش شیفت‌ها</label>
         <div style="display:flex; gap:8px; margin-bottom:12px;">
-          <input type="text" id="refDateInput" placeholder="YYYY-MM-DD تاریخ مرجع" style="margin-bottom:0;">
+          <input type="text" id="refDateInput" placeholder="تاریخ مرجع (شمسی)" style="margin-bottom:0;">
           <select id="dummySel" style="display:none"></select>
         </div>
         <div class="settings-grid">
@@ -383,7 +384,7 @@
         <label>ارجاع کار به شیفت (توسط کارشناس)</label>
         <p class="u-lbl">روز</p>
         <select id="arDay"></select>
-        <p class="u-lbl">شیفت (تیم و مسئول آن شیفت)</p>
+        <p class="u-lbl">نوبت کاری (و مسئول آن شیفت)</p>
         <select id="arShift"></select>
         <p class="u-lbl">ارسال برای</p>
         <select id="arScope"><option value="one">فقط همین شیفت</option><option value="all">هر سه شیفت آن روز</option></select>
@@ -450,7 +451,7 @@
       </div>
 
       <div class="admin-section" id="adm-users">
-        <label>حساب‌های کاربری (نام، نام کاربری، تیم و نقش)</label>
+        <label>حساب‌های کاربری (نام، نام کاربری، شیفت، نقش و دسترسی کارشناس)</label>
         <div id="usersAdmin"></div>
       </div>
 
@@ -557,6 +558,82 @@ let isOwner = false;   // نقش «ادمین» (owner): دسترسی کامل؛
 
 const today = stripTime(new Date());
 let selectedDate = stripTime(new Date());
+
+/* ---------------- Jalali date picker (جایگزین تقویم میلادی مرورگر) ----------------
+   مقدار داخلی همچنان به‌صورت YYYY-MM-DD میلادی است تا بقیه‌ی کدها بدون تغییر کار کنند؛
+   فقط نمایش و انتخاب به‌صورت شمسی است. */
+(function(){
+  const nfa = n => Number(n).toLocaleString('fa-IR', { useGrouping:false });
+  const WD = ['ش','ی','د','س','چ','پ','ج'];
+  const nativeSet = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+  const fmt = iso => { const p = String(iso).split('-').map(Number); const j = gregorianToJalali(p[0], p[1], p[2]); return nfa(j[2]) + ' ' + PERSIAN_MONTHS[j[1]-1] + ' ' + nfa(j[0]); };
+
+  const st = document.createElement('style');
+  st.textContent = '.jp-ov{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px}' +
+    '.jp-box{direction:rtl;background:var(--panel,#fff);color:var(--text,#222);border:1px solid var(--line,#ddd);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.25);width:100%;max-width:320px;padding:14px;font-family:inherit}' +
+    '.jp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:6px}' +
+    '.jp-head b{font-size:15px}.jp-head button{width:34px;height:34px;border:1px solid var(--line,#ddd);background:var(--panel-2,#f5f5f5);border-radius:8px;cursor:pointer;font-size:16px;font-family:inherit;color:inherit}' +
+    '.jp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}' +
+    '.jp-wd{font-size:12px;color:var(--muted,#888);padding:4px 0}' +
+    '.jp-d{padding:8px 0;border-radius:8px;cursor:pointer;font-size:14px;border:1px solid transparent;font-family:inherit;background:none;color:inherit}' +
+    '.jp-d:hover{background:var(--panel-2,#f0f0f0)}.jp-d.fri{color:#c0392b}' +
+    '.jp-d.tdy{border-color:var(--accent,#2a7)}.jp-d.sel{background:var(--accent,#2a7);color:#fff}' +
+    '.jp-foot{display:flex;justify-content:space-between;margin-top:10px;gap:8px}' +
+    '.jp-foot button{flex:1;padding:8px;border:1px solid var(--line,#ddd);background:var(--panel-2,#f5f5f5);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;color:inherit}';
+  document.head.appendChild(st);
+
+  function openPicker(inp){
+    let [jy, jm] = (() => { const s = inp.value ? inp.value.split('-').map(Number) : null;
+      const j = s ? gregorianToJalali(s[0], s[1], s[2]) : gregorianToJalali(today.getFullYear(), today.getMonth()+1, today.getDate()); return [j[0], j[1]]; })();
+    const ov = document.createElement('div'); ov.className = 'jp-ov';
+    const box = document.createElement('div'); box.className = 'jp-box'; ov.appendChild(box);
+    const close = () => ov.remove();
+    const pick = iso => { inp.value = iso; inp.dispatchEvent(new Event('change', { bubbles:true })); close(); };
+    function render(){
+      const n = daysInJalaliMonth(jy, jm), first = jalaliToGregorian(jy, jm, 1);
+      const off = (first.getDay() + 1) % 7;            // شنبه = ستون اول
+      const selIso = inp.value, tIso = isoDate(today);
+      let h = '<div class="jp-head"><button type="button" data-a="next">›</button><b>' + PERSIAN_MONTHS[jm-1] + ' ' + nfa(jy) + '</b><button type="button" data-a="prev">‹</button></div><div class="jp-grid">';
+      WD.forEach(w => h += '<div class="jp-wd">' + w + '</div>');
+      for (let i = 0; i < off; i++) h += '<div></div>';
+      for (let d = 1; d <= n; d++){
+        const g = jalaliToGregorian(jy, jm, d), iso = isoDate(g);
+        h += '<button type="button" class="jp-d' + (g.getDay() === 5 ? ' fri' : '') + (iso === tIso ? ' tdy' : '') + (iso === selIso ? ' sel' : '') + '" data-iso="' + iso + '">' + nfa(d) + '</button>';
+      }
+      h += '</div><div class="jp-foot"><button type="button" data-a="today">امروز</button><button type="button" data-a="clear">پاک کردن</button><button type="button" data-a="close">بستن</button></div>';
+      box.innerHTML = h;
+    }
+    box.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.iso) return pick(b.dataset.iso);
+      const a = b.dataset.a;
+      if (a === 'next'){ jm++; if (jm > 12){ jm = 1; jy++; } render(); }
+      else if (a === 'prev'){ jm--; if (jm < 1){ jm = 12; jy--; } render(); }
+      else if (a === 'today') pick(isoDate(today));
+      else if (a === 'clear') pick('');
+      else close();
+    });
+    ov.addEventListener('click', e => { if (e.target === ov) close(); });
+    render(); document.body.appendChild(ov);
+  }
+
+  window.makeJalaliPicker = function(inp, placeholder){
+    if (!inp || inp._jp) return; inp._jp = true;
+    const initial = (inp.value || '').trim();
+    let iso = '';
+    inp.type = 'text'; inp.readOnly = true; inp.style.cursor = 'pointer'; inp.setAttribute('inputmode', 'none');
+    inp.placeholder = placeholder || 'انتخاب تاریخ (شمسی)';
+    Object.defineProperty(inp, 'value', { configurable:true,
+      get(){ return iso; },
+      set(v){ v = String(v == null ? '' : v).trim(); iso = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; nativeSet.call(inp, iso ? fmt(iso) : ''); } });
+    inp.value = initial;
+    inp.addEventListener('click', () => openPicker(inp));
+  };
+  ['fromDate', 'toDate'].forEach(id => makeJalaliPicker(document.getElementById(id), id === 'fromDate' ? 'از تاریخ (شمسی)' : 'تا تاریخ (شمسی)'));
+  makeJalaliPicker(document.getElementById('vwDate'), 'انتخاب تاریخ (شمسی)');
+  makeJalaliPicker(document.getElementById('refDateInput'), 'تاریخ مرجع چرخش (شمسی)');
+})();
+
 
 // Reporting-entry window per shift, in real wall-clock hours. Night crosses
 // midnight, so its window starts on the report's own date and ends the
@@ -1847,7 +1924,7 @@ function render(){
         const record = { supervisor, attendees: attendeesNow, activities, consumables, notes: notesVal, team:s.team, submittedAt:new Date().toISOString() };
         // ثبت فوری روی صفحه؛ ارسال به سرور در پس‌زمینه (با تلاش مجدد خودکار و نمایش وضعیت پایین صفحه)
         const reportKey = keyFor(isoDate(selectedDate), def.key);
-        audit(recordHasContent(reportsStore[reportKey]) ? 'ویرایش گزارش' : 'ثبت گزارش', isoDate(selectedDate) + ' · ' + def.title + ' · تیم ' + s.team);
+        audit(recordHasContent(reportsStore[reportKey]) ? 'ویرایش گزارش' : 'ثبت گزارش', isoDate(selectedDate) + ' · ' + def.title + ' · شیفت ' + s.team);
         reportsStore[reportKey] = record;
         state[def.key].record = record;
         setBtnLoading(saveBtn, true);   // چرخش داخل خود دکمه تا رسیدن به سرور
@@ -2067,18 +2144,17 @@ const EXPERT_CARDS = [   // کارشناس
   { id:'adm-view',      title:'مشاهده‌ی گزارش‌ها',    sub:'فقط نمایش، همه‌ی جزئیات یک روز', onOpen: () => { if (window.renderViewReports) window.renderViewReports(); } },
   { id:'adm-refstatus', title:'وضعیت ارجاع‌های من',   sub:'در انتظار / ثبت‌شده / انجام‌شده', onOpen: () => { if (window.renderRefStatus) window.renderRefStatus(); } },
 ];
-const OWNER_CARDS = EXPERT_CARDS.concat([   // ادمین (دسترسی کامل)
-  { id:'adm-unsub',    title:'گزارش‌های ثبت‌نشده',     sub:'با دکمه‌ی یادآوری به مسئول شیفت', onOpen: () => { if (window.renderUnsub) window.renderUnsub(); } },
-  { id:'adm-refmgr',   title:'مدیریت ارجاع‌ها',        sub:'ویرایش و حذف ارجاع‌های در انتظار', onOpen: () => { if (window.renderRefManager) window.renderRefManager(); } },
-  { id:'adm-audit',    title:'سابقه‌ی تغییرات',        sub:'چه کسی، کی، چه کاری کرد', onOpen: () => { if (window.renderAudit) window.renderAudit(); } },
+const OWNER_CARDS = [   // ادمین (بدون ارجاع کار، وضعیت ارجاع، گزارش‌های ثبت‌نشده، مدیریت ارجاع و سابقه‌ی تغییرات)
+  EXPERT_CARDS.find(c => c.id === 'adm-excel'),
+  EXPERT_CARDS.find(c => c.id === 'adm-view'),
   { id:'adm-settings', title:'تنظیم بازه‌ی شیفت‌ها',    sub:'ساعت شروع و پایان ثبت گزارش', onOpen: () => { if (window.renderSettings) window.renderSettings(); } },
   { id:'adm-devices',  title:'گوشی‌های دارای اعلان',   sub:'مشاهده و حذف', onOpen: () => { if (window.renderDevices) window.renderDevices(); } },
   { id:'adm-backup',   title:'پشتیبان‌گیری',           sub:'دریافت و بازگردانی', onOpen: () => { if (window.renderBackup) window.renderBackup(); } },
-  { id:'adm-rotation', title:'ترتیب چرخش تیم‌ها',     sub:'تاریخ مرجع و ترتیب تیم‌ها', onOpen: fillRotation },
-  { id:'adm-users',    title:'حساب‌های کاربری',       sub:'نام، نام کاربری، تیم، نقش و رمز', onOpen: () => { if (window.renderUsersAdmin) window.renderUsersAdmin(); } },
+  { id:'adm-rotation', title:'ترتیب چرخش شیفت‌ها',     sub:'تاریخ مرجع و ترتیب شیفت‌ها', onOpen: fillRotation },
+  { id:'adm-users',    title:'حساب‌های کاربری',       sub:'نام، نام کاربری، شیفت، نقش و رمز', onOpen: () => { if (window.renderUsersAdmin) window.renderUsersAdmin(); } },
   { id:'adm-sup',      title:'فهرست مسئولین شیفت',   sub:'', onOpen: () => renderPeopleAdmin() },
   { id:'adm-staff',    title:'فهرست پرسنل (حاضرین)', sub:'', onOpen: () => renderPeopleAdmin() },
-]);
+];
 let mountedKind = '';
 function mountAdminRows(){   // با هر تغییر نقش (ورود/خروج) صدا زده می‌شود؛ رندر شیفت‌ها به این بخش دست نمی‌زند
   const kind = isOwner ? 'owner' : (isAdmin ? 'expert' : '');
@@ -2153,15 +2229,91 @@ document.getElementById('addStaffBtn').onclick = async () => {
 
 document.getElementById('saveRotationBtn').onclick = async () => {
   const refDate = document.getElementById('refDateInput').value.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(refDate)) { alert('فرمت تاریخ باید YYYY-MM-DD باشد'); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(refDate)) { alert('تاریخ مرجع را از تقویم انتخاب کنید'); return; }
   const order = [document.getElementById('pos0').value, document.getElementById('pos1').value,
                  document.getElementById('pos2').value, document.getElementById('pos3').value];
   CONFIG = { refDate, order };
   const ok = await safeSet('shift-config', CONFIG);
-  audit('تغییر ترتیب چرخش تیم‌ها', refDate + ' · ' + order.join(''));
+  audit('تغییر ترتیب چرخش شیفت‌ها', refDate + ' · ' + order.join(''));
   await loadState();
-  alert(ok ? 'چرخش تیم‌ها ذخیره شد' : 'ذخیره ناموفق بود');
+  alert(ok ? 'چرخش شیفت‌ها ذخیره شد' : 'ذخیره ناموفق بود');
 };
+
+/* ---------- افزودن نمودار به شیت «آمار گیری» (SheetJS نسخه‌ی رایگان نمودار نمی‌سازد؛ فایل xlsx را با JSZip کامل می‌کنیم) ---------- */
+async function addStatsCharts(xlsxBytes, sheetName, charts){
+  const zip = await JSZip.loadAsync(xlsxBytes);
+  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  // پیدا کردن فایل شیتِ آمار
+  const wbXml = await zip.file('xl/workbook.xml').async('string');
+  const relsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+  let sheetPath = null;
+  const sm = [...wbXml.matchAll(/<sheet\b[^>]*>/g)].map(m => m[0]).find(t => t.indexOf('name="' + esc(sheetName) + '"') > -1);
+  if (sm){
+    const rid = (sm.match(/r:id="([^"]+)"/) || [])[1];
+    const rm = [...relsXml.matchAll(/<Relationship\b[^>]*>/g)].map(m => m[0]).find(t => t.indexOf('Id="' + rid + '"') > -1);
+    const tg = rm && (rm.match(/Target="([^"]+)"/) || [])[1];
+    if (tg) sheetPath = tg.charAt(0) === '/' ? tg.slice(1) : 'xl/' + tg.replace(/^\.\//, '');
+  }
+  if (!sheetPath || !zip.file(sheetPath)) throw new Error('sheet not found');
+  const sheetFile = sheetPath.split('/').pop();
+  const q = "'" + sheetName.replace(/'/g, "''") + "'";
+
+  const NS = 'xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const chartXml = (c, n) => {
+    const catRef = q + '!$A$2:$A$' + (1 + c.cats.length), valRef = q + '!$' + c.col + '$2:$' + c.col + '$' + (1 + c.vals.length), serRef = q + '!$' + c.col + '$1';
+    const strPts = c.cats.map((v, i) => '<c:pt idx="' + i + '"><c:v>' + esc(v) + '</c:v></c:pt>').join('');
+    const numPts = c.vals.map((v, i) => '<c:pt idx="' + i + '"><c:v>' + Number(v) + '</c:v></c:pt>').join('');
+    const txt = (sz, b) => '<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="' + sz + '" b="' + (b ? 1 : 0) + '"/></a:pPr><a:endParaRPr lang="fa-IR"/></a:p></c:txPr>';
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<c:chartSpace ' + NS + '><c:roundedCorners val="0"/><c:chart>' +
+      '<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="1300" b="1"/></a:pPr><a:r><a:rPr lang="fa-IR" sz="1300" b="1"/><a:t>' + esc(c.title) + '</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>' +
+      '<c:autoTitleDeleted val="0"/><c:plotArea><c:layout/>' +
+      '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>' +
+      '<c:ser><c:idx val="0"/><c:order val="0"/>' +
+      '<c:tx><c:strRef><c:f>' + esc(serRef) + '</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>' + esc(c.title) + '</c:v></c:pt></c:strCache></c:strRef></c:tx>' +
+      '<c:spPr><a:solidFill><a:srgbClr val="' + c.color + '"/></a:solidFill></c:spPr><c:invertIfNegative val="0"/>' +
+      '<c:dLbls><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' + txt(1100, true) + '<c:dLblPos val="outEnd"/><c:showLegendKey val="0"/><c:showVal val="1"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="0"/><c:showBubbleSize val="0"/></c:dLbls>' +
+      '<c:cat><c:strRef><c:f>' + esc(catRef) + '</c:f><c:strCache><c:ptCount val="' + c.cats.length + '"/>' + strPts + '</c:strCache></c:strRef></c:cat>' +
+      '<c:val><c:numRef><c:f>' + esc(valRef) + '</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="' + c.vals.length + '"/>' + numPts + '</c:numCache></c:numRef></c:val>' +
+      '</c:ser><c:gapWidth val="70"/><c:axId val="5000' + n + '1"/><c:axId val="5000' + n + '2"/></c:barChart>' +
+      '<c:catAx><c:axId val="5000' + n + '1"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/><c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/>' + txt(1000, false) + '<c:crossAx val="5000' + n + '2"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/><c:noMultiLvlLbl val="0"/></c:catAx>' +
+      '<c:valAx><c:axId val="5000' + n + '2"/><c:scaling><c:orientation val="minMax"/><c:min val="0"/></c:scaling><c:delete val="0"/><c:axPos val="l"/><c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:ln></c:spPr></c:majorGridlines><c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="5000' + n + '1"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx>' +
+      '</c:plotArea><c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>';
+  };
+
+  const W = 3960000, H = 2520000, GAP = 120000, Y = 1750000;
+  const anchors = charts.map((c, i) =>
+    '<xdr:absoluteAnchor><xdr:pos x="' + (i * (W + GAP)) + '" y="' + Y + '"/><xdr:ext cx="' + W + '" cy="' + H + '"/>' +
+    '<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="' + (i + 2) + '" name="Chart ' + (i + 1) + '"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>' +
+    '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart r:id="rId' + (i + 1) + '"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:absoluteAnchor>').join('');
+  const drawing = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">' + anchors + '</xdr:wsDr>';
+  const drawingRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    charts.map((c, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart' + (i + 1) + '.xml"/>').join('') + '</Relationships>';
+
+  charts.forEach((c, i) => zip.file('xl/charts/chart' + (i + 1) + '.xml', chartXml(c, i + 1)));
+  zip.file('xl/drawings/drawing1.xml', drawing);
+  zip.file('xl/drawings/_rels/drawing1.xml.rels', drawingRels);
+
+  // ارتباط شیت ← نقاشی
+  const relPath = 'xl/worksheets/_rels/' + sheetFile + '.rels';
+  const drawRel = '<Relationship Id="rIdDrw1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>';
+  if (zip.file(relPath)){
+    const x = await zip.file(relPath).async('string');
+    zip.file(relPath, x.replace('</Relationships>', drawRel + '</Relationships>'));
+  } else {
+    zip.file(relPath, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + drawRel + '</Relationships>');
+  }
+  let sx = await zip.file(sheetPath).async('string');
+  if (!/xmlns:r=/.test(sx.slice(0, 600))) sx = sx.replace(/<worksheet\b/, '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+  sx = sx.replace('</worksheet>', '<drawing r:id="rIdDrw1"/></worksheet>');
+  zip.file(sheetPath, sx);
+
+  let ct = await zip.file('[Content_Types].xml').async('string');
+  const ov = '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' +
+    charts.map((c, i) => '<Override PartName="/xl/charts/chart' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>').join('');
+  zip.file('[Content_Types].xml', ct.replace('</Types>', ov + '</Types>'));
+  return await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+}
 
 /* ---------------- Admin: Excel export ---------------- */
 document.getElementById('exportBtn').onclick = async () => {
@@ -2218,18 +2370,60 @@ document.getElementById('exportBtn').onclick = async () => {
     cursor.setDate(cursor.getDate()+1);
   }
 
-  const header = ['تاریخ (میلادی)','تاریخ (شمسی)','شیفت','تیم','مسئول شیفت','حاضرین','وضعیت','ردیف فعالیت','ساعت انجام کار','شرح فعالیت','شماره دستور کار','نوع کار','انجام‌دهنده'];
+  const header = ['تاریخ (میلادی)','تاریخ (شمسی)','نوبت کاری','شیفت','مسئول شیفت','حاضرین','وضعیت','ردیف فعالیت','ساعت انجام کار','شرح فعالیت','شماره دستور کار','نوع کار','انجام‌دهنده'];
   const wsData = [header, ...rows];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [{wch:12},{wch:12},{wch:10},{wch:6},{wch:16},{wch:34},{wch:16},{wch:8},{wch:13},{wch:30},{wch:14},{wch:8},{wch:16}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'گزارش شیفت‌ها');
-  const consHeader = ['تاریخ (میلادی)','تاریخ (شمسی)','شیفت','تیم','مسئول شیفت','ردیف','نام قلم مصرفی','واحد','مقدار','محل مصرف'];
+  const consHeader = ['تاریخ (میلادی)','تاریخ (شمسی)','نوبت کاری','شیفت','مسئول شیفت','ردیف','نام قلم مصرفی','واحد','مقدار','محل مصرف'];
   const ws2 = XLSX.utils.aoa_to_sheet([consHeader, ...consRows]);
   ws2['!cols'] = [{wch:12},{wch:12},{wch:10},{wch:6},{wch:16},{wch:6},{wch:28},{wch:10},{wch:10},{wch:18}];
   XLSX.utils.book_append_sheet(wb, ws2, 'اقلام مصرفی');
+
+  /* ---- شیت «آمار گیری»: برای هر مسئول شیفت (A/B/C/D) در بازه‌ی انتخابی؛ مستقل از فیلترها ---- */
+  const STATS_NAME = 'آمار گیری';
+  const stats = {}; CONFIG.order.forEach(t => { stats[t] = { missing:0, acts:0, wo:0, slots:0 }; });
+  const nowS = new Date();
+  for (let c = new Date(from); c <= to; c.setDate(c.getDate()+1)){
+    const tm = computeTeams(c, refDate, CONFIG.order), ds = isoDate(c);
+    for (const key of ['day','evening','night']){
+      const t = tm[key]; if (!t || !stats[t]) continue;
+      const rec = reportsStore[keyFor(ds, key)] || null;
+      const ended = shiftWindowRange(ds, key).end <= nowS;
+      if (!recordHasContent(rec)){ if (ended){ stats[t].slots++; stats[t].missing++; } continue; }
+      stats[t].slots++;
+      const as = (rec.activities||[]).filter(a=>a.desc||a.workOrder||a.workType||(a.performedBy&&a.performedBy.length));
+      stats[t].acts += as.length;
+      stats[t].wo += as.filter(a => String(a.workOrder||'').trim()).length;
+    }
+  }
+  let usersS = []; try{ usersS = await window.authApi.fetchUsers(); }catch(e){}
+  const nameOfTeam = t => { const u = (usersS||[]).find(x => x && x.role !== 'admin' && x.role !== 'owner' && x.team === t); return u ? u.name : ''; };
+  const jalTxt = iso => { const d = new Date(iso+'T00:00:00'), j = gregorianToJalali(d.getFullYear(), d.getMonth()+1, d.getDate()); return j[2] + ' ' + PERSIAN_MONTHS[j[1]-1] + ' ' + j[0]; };
+  const statRows = Object.keys(stats).sort().map(t => [nameOfTeam(t) || ('شیفت ' + t), 'شیفت ' + t, stats[t].missing, stats[t].acts, stats[t].wo, stats[t].slots]);
+  const statHeader = ['مسئول شیفت','شیفت','تعداد عدم ثبت گزارش','تعداد فعالیت‌های انجام‌شده','تعداد ثبت شماره دستور کار','تعداد نوبت‌های کاری (پایان‌یافته)'];
+  const ws3 = XLSX.utils.aoa_to_sheet([statHeader, ...statRows, [], ['بازه‌ی آمار: از ' + jalTxt(fromVal) + ' تا ' + jalTxt(toVal)], ['عدم ثبت گزارش = نوبت کاریِ پایان‌یافته‌ای که هیچ گزارشی برایش ثبت نشده است (فیلترهای بالا روی این شیت اثر ندارند).']]);
+  ws3['!cols'] = [{wch:18},{wch:10},{wch:20},{wch:24},{wch:24},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws3, STATS_NAME);
+  const chartDefs = [
+    { title:'تعداد عدم ثبت گزارش',        col:'C', color:'C0392B', cats: statRows.map(r => r[0]), vals: statRows.map(r => r[2]) },
+    { title:'تعداد فعالیت‌های انجام‌شده',  col:'D', color:'2E75B6', cats: statRows.map(r => r[0]), vals: statRows.map(r => r[3]) },
+    { title:'تعداد ثبت شماره دستور کار',   col:'E', color:'2E8B57', cats: statRows.map(r => r[0]), vals: statRows.map(r => r[4]) },
+  ];
+
   audit('خروجی اکسل', fromVal + ' تا ' + toVal);
-  XLSX.writeFile(wb, `گزارش_شیفت_${fromVal}_تا_${toVal}.xlsx`);
+  const fname = `گزارش_شیفت_${fromVal}_تا_${toVal}.xlsx`;
+  let bytes = null;
+  if (window.JSZip){ try{ bytes = await addStatsCharts(XLSX.write(wb, { bookType:'xlsx', type:'array' }), STATS_NAME, chartDefs); }catch(e){ console.warn('charts', e); bytes = null; } }
+  if (bytes){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = fname; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  } else {
+    XLSX.writeFile(wb, fname);   // اگر ساخت نمودار ممکن نشد، فایل بدون نمودار (با جدول آمار) ذخیره می‌شود
+  }
 };
 
 document.getElementById('refreshBtn').onclick = async () => {
@@ -2327,14 +2521,14 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     msg.onMessage(p => { const n = (p && p.notification) || {}; reg.showNotification(n.title || 'گزارش شیفت', { body: n.body || '', icon: 'icon-192.png', dir: 'rtl', lang: 'fa', tag: 'shift-referral' }); });
     return token;
   }
-  async function register(team, name){
+  async function register(team, name, uid){
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') throw new Error('denied');
     const token = await obtainToken();
     const key = 'pushtoken:' + hash(token);
-    const ok = await safeSet(key, { team, name, token, t: Date.now() });
+    const ok = await safeSet(key, { team, name, uid: uid || '', token, t: Date.now() });
     if (!ok) throw new Error('save');
-    localStorage.setItem('push-reg', JSON.stringify({ team, name, key, t: Date.now() }));
+    localStorage.setItem('push-reg', JSON.stringify({ team, name, uid: uid || '', key, t: Date.now() }));
   }
   async function unregister(){
     const r = getReg();
@@ -2346,7 +2540,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   async function refreshReg(){
     const r = getReg(); if (!r || !supported || Notification.permission !== 'granted') return;
     if (Date.now() - (r.t || 0) < 7 * 86400000) { obtainToken().catch(() => {}); return; }
-    try{ await register(r.team, r.name); }catch(e){}
+    try{ await register(r.team, r.name, r.uid); }catch(e){}
   }
 
   // اعلان‌ها دیگر دکمه‌ی جدا ندارند؛ بر اساس حساب کاربری از اسکریپت ورود (پایین فایل) فعال می‌شوند
@@ -2509,15 +2703,15 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     return { ov, q, m, close: () => ov.remove() };
   }
 
-  /* ----- تیم و اعلان (بر اساس حساب) ----- */
+  /* ----- شیفت و اعلان (بر اساس حساب) ----- */
   function afterLogin(u, fresh){
     if (!isStaff(u) && !u.team){ askTeam(u, fresh); return; }
     syncPush(u, fresh);
   }
   function askTeam(u, fresh){
     if (document.getElementById('teamAsk')) return;
-    const w = modal('<h2 id="teamAsk">تیم شما کدام است؟</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای دریافت اعلان شروع شیفت، یک‌بار تیم خود را انتخاب کنید. بعداً فقط ادمین می‌تواند آن را عوض کند.</p>' +
-      '<select id="tSel" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:14px;background:#fff">' + teamsList().map(t => '<option value="' + t + '">تیم ' + t + '</option>').join('') + '</select>' +
+    const w = modal('<h2 id="teamAsk">شیفت شما کدام است؟</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px">برای دریافت اعلان شروع شیفت، یک‌بار شیفت خود را انتخاب کنید. بعداً فقط ادمین می‌تواند آن را عوض کند.</p>' +
+      '<select id="tSel" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:14px;background:#fff">' + teamsList().map(t => '<option value="' + t + '">شیفت ' + t + '</option>').join('') + '</select>' +
       '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="tOk">تأیید</button>');
     w.q('tOk').onclick = async () => {
       const team = w.q('tSel').value; w.q('tOk').disabled = true; w.m('در حال ذخیره…', true);
@@ -2528,7 +2722,8 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     };
   }
   const isStaff = u => !!u && (u.role === 'admin' || u.role === 'owner');
-  const pushTeam = u => u.team || (isStaff(u) ? 'admin' : '');   // ادمین تیم ندارد؛ با برچسب admin ثبت می‌شود
+  const wantsUnsub = u => !!u && u.role === 'admin' && u.notifyUnsub === true;   // کارشناسی که ادمین «دریافت اعلان عدم ثبت گزارش» را برایش تیک زده
+  const pushTeam = u => u.team || (isStaff(u) ? 'admin' : '');   // ادمین شیفت ندارد؛ با برچسب admin ثبت می‌شود
   const isStandalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   async function syncPush(u, fresh){
     const pt = pushTeam(u);
@@ -2541,25 +2736,25 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     if (document.getElementById('pushAsk')) return;
     if (Notification.permission === 'granted'){
       const reg = api.getReg();
-      if (!reg || reg.team !== pt || reg.name !== u.name){ try{ await api.register(pt, u.name); }catch(e){} }
+      if (!reg || reg.team !== pt || reg.name !== u.name || reg.uid !== u.id){ try{ await api.register(pt, u.name, u.id); }catch(e){} }
       return;
     }
     pushGate(u, pt, api);   // اجازه داده نشده: تا فعال نشود، برنامه قابل استفاده نیست
   }
   // پنجره‌ی اجباری اعلان: بسته‌شدنی نیست؛ فقط با فعال‌سازی اعلان (یا خروج از حساب) از بین می‌رود
   function pushGate(u, pt, api){
-    const adm = isStaff(u);
+    const adm = wantsUnsub(u);
     const w = modal('<h2 id="pushAsk">فعال‌سازی اعلان (الزامی)</h2><p id="pgTxt" style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px"></p>' +
       '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="pOk"></button><button class="auth-sec" id="pOut">خروج از حساب</button>');
     let busy = false, done = false, autoTried = false;
-    const why = adm ? 'برای استفاده از برنامه باید اعلان را فعال کنید تا اگر گزارش شیفتی تا پایان مهلت ثبت نشد، روی همین گوشی به شما خبر داده شود.'
-                    : 'برای استفاده از برنامه باید اعلان را فعال کنید تا کارهای ارجاعی و یادآوری شروع شیفت را روی همین گوشی دریافت کنید.';
+    const why = adm ? 'برای استفاده از برنامه باید اعلان را فعال کنید تا اگر تا ساعت ۸ صبح گزارش شیفتی از روز قبل ثبت نشده بود، روی همین گوشی به شما خبر داده شود.'
+                    : (isStaff(u) ? 'برای استفاده از برنامه باید اعلان را فعال کنید.' : 'برای استفاده از برنامه باید اعلان را فعال کنید تا کارهای ارجاعی و یادآوری شروع شیفت را روی همین گوشی دریافت کنید.');
     const deniedTxt = 'اجازه‌ی اعلان برای این برنامه مسدود شده است. از تنظیمات گوشی (Settings ← Notifications ← همین برنامه) یا قفل کنار آدرس مرورگر، اعلان را روی «Allow» بگذارید و به برنامه برگردید؛ به‌محض فعال شدن، خودکار ادامه می‌دهد.';
     const paint = () => { const d = Notification.permission === 'denied'; w.q('pgTxt').textContent = d ? deniedTxt : why; w.q('pOk').textContent = d ? 'بررسی دوباره' : 'فعال‌سازی اعلان'; };
     const finish = () => { done = true; clearInterval(timer); w.close(); };
     const run = async () => {
       if (busy || done) return; busy = true; w.q('pOk').disabled = true; w.m('در حال فعال‌سازی…', true);
-      try{ await api.register(pt, u.name); finish(); }
+      try{ await api.register(pt, u.name, u.id); finish(); }
       catch(e){ w.m(pushErr(e)); paint(); }
       finally{ busy = false; if (!done) w.q('pOk').disabled = false; }
     };
@@ -2597,12 +2792,12 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   function pushLine(){
     const api = window.pushApi;
     const pt = pushTeam(CUR);
-    if (!pt) return { t: 'اعلان: تیم شما هنوز انتخاب نشده است.', btn: false };
+    if (!pt) return { t: 'اعلان: شیفت شما هنوز انتخاب نشده است.', btn: false };
     if (!api || !api.supported) return { t: 'اعلان: این مرورگر پشتیبانی نمی‌کند (روی آیفون برنامه را با «Add to Home Screen» نصب و از روی آیکون باز کنید).', btn: false };
     if (Notification.permission === 'denied') return { t: 'اعلان: اجازه برای این سایت مسدود است؛ از تنظیمات مرورگر روی «Allow» بگذارید.', btn: false };
     const r = api.getReg();
-    if (r && Notification.permission === 'granted' && r.team === pt) return { t: isStaff(CUR) ? '🔔 اعلان فعال است — اگر گزارش یکی از شیفت‌ها تا پایان مهلت ثبت نشود به شما خبر داده می‌شود.' : '🔔 اعلان فعال است — مسئول شیفت ' + CUR.team + '، کارهای ارجاعی همان لحظه برایتان می‌آید.', btn: false };
-    return { t: isStaff(CUR) ? 'اعلان گزارش ثبت‌نشده روی این گوشی فعال نیست.' : 'اعلان روی این گوشی فعال نیست (مسئول شیفت ' + CUR.team + ').', btn: true };
+    if (r && Notification.permission === 'granted' && r.team === pt && r.uid === CUR.id) return { t: isStaff(CUR) ? (wantsUnsub(CUR) ? '🔔 اعلان فعال است — اگر تا ساعت ۸ صبح گزارش شیفتی از روز قبل ثبت نشده باشد به شما خبر داده می‌شود.' : '🔔 اعلان فعال است.') : '🔔 اعلان فعال است — مسئول شیفت ' + CUR.team + '، کارهای ارجاعی همان لحظه برایتان می‌آید.', btn: false };
+    return { t: isStaff(CUR) ? 'اعلان روی این گوشی فعال نیست.' : 'اعلان روی این گوشی فعال نیست (مسئول شیفت ' + CUR.team + ').', btn: true };
   }
   function openUserModal(){
     if (!CUR) return;
@@ -2621,7 +2816,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     w.q('cpOut').onclick = () => { w.close(); logout(); };
     if (w.q('pEnable')) w.q('pEnable').onclick = async () => {
       w.q('pEnable').disabled = true;
-      try{ await window.pushApi.register(pushTeam(CUR), CUR.name); const n = pushLine(); w.q('pLine').textContent = n.t; w.q('pEnable').remove(); w.m(''); }
+      try{ await window.pushApi.register(pushTeam(CUR), CUR.name, CUR.id); const n = pushLine(); w.q('pLine').textContent = n.t; w.q('pEnable').remove(); w.m(''); }
       catch(e){ w.q('pEnable').disabled = false; w.m(pushErr(e)); }
     };
     w.q('cpSave').onclick = async () => {
@@ -2655,7 +2850,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     const fillShifts = () => {
       const d = new Date(daySel.value + 'T00:00:00'), prev = shSel.value;
       const t = computeTeams(d, new Date(CONFIG.refDate + 'T00:00:00'), CONFIG.order);
-      shSel.innerHTML = SHIFT_DEFS.map(def => { const team = t[def.key], o = ownerOf(team); return '<option value="' + def.key + '">' + def.title + ' — تیم ' + team + (o ? ' (' + esc(o) + ')' : '') + '</option>'; }).join('');
+      shSel.innerHTML = SHIFT_DEFS.map(def => { const team = t[def.key], o = ownerOf(team); return '<option value="' + def.key + '">' + def.title + ' — شیفت ' + team + (o ? ' (' + esc(o) + ')' : '') + '</option>'; }).join('');
       if (prev) shSel.value = prev;
     };
     if (!daySel.options.length){
@@ -2712,20 +2907,22 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     let list; try{ list = await fetchUsers(); }catch(e){ wrap.innerHTML = '<p class="people-empty">اتصال برقرار نشد؛ دوباره «مدیریت» را باز کنید.</p>'; return; }
     const teams = teamsList();
     const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + l + '</option>';
-    const teamOpts = t => opt('', 'بدون تیم', !t) + teams.map(x => opt(x, 'تیم ' + x, x === t)).join('');
+    const teamOpts = t => opt('', 'بدون شیفت', !t) + teams.map(x => opt(x, 'شیفت ' + x, x === t)).join('');
     const roleOpts = r => opt('supervisor', 'سرشیفت', r !== 'admin' && r !== 'owner') + opt('admin', 'کارشناس', r === 'admin') + opt('owner', 'ادمین', r === 'owner');
     const fields = u => '<p class="u-lbl">نام</p><input class="u-name" value="' + esc(u.name) + '" placeholder="نام و نام خانوادگی">' +
       '<p class="u-lbl">نام کاربری</p><input class="u-id" inputmode="numeric" value="' + esc(u.id) + '" placeholder="نام کاربری"' + (CUR && u.id === CUR.id ? ' disabled' : '') + '>' +
-      '<p class="u-lbl">تیم</p><select class="u-team">' + teamOpts(u.team || '') + '</select>' +
+      '<p class="u-lbl">شیفت</p><select class="u-team">' + teamOpts(u.team || '') + '</select>' +
       '<p class="u-lbl">نقش</p><select class="u-role"' + (CUR && u.id === CUR.id ? ' disabled' : '') + '>' + roleOpts(u.role) + '</select>' +
-      '<p class="u-lbl">دسترسی کارشناس به گزارش‌ها (فقط برای نقش کارشناس)</p><select class="u-perm">' + opt('view', 'فقط نمایش', u.perm !== 'edit') + opt('edit', 'مشاهده، ویرایش و ثبت گزارش', u.perm === 'edit') + '</select>';
+      (u.role === 'admin' ? '<div class="u-expert">' : '<div class="u-expert" style="display:none">') + '<p class="u-lbl">دسترسی‌های کارشناس</p>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 8px;cursor:pointer"><input type="checkbox" class="u-perm" style="width:auto;margin:0"' + (u.perm === 'edit' ? ' checked' : '') + '><span>دسترسی ویرایش و ثبت گزارش</span></label>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 8px;cursor:pointer"><input type="checkbox" class="u-nun" style="width:auto;margin:0"' + (u.notifyUnsub ? ' checked' : '') + '><span>دریافت اعلان عدم ثبت گزارش</span></label></div>';
     wrap.innerHTML = list.map(u => '<div class="u-card" data-id="' + esc(u.id) + '">' + fields(u) +
       '<div class="u-btns"><button class="btn btn-save u-save" type="button">ذخیره</button><button class="btn btn-cancel u-reset" type="button">بازنشانی رمز</button>' +
       (CUR && u.id === CUR.id ? '' : '<button class="btn btn-cancel u-del" type="button" style="color:var(--red)">حذف</button>') + '</div></div>').join('') +
       '<div class="u-card" id="uAddCard"><p class="u-lbl" style="font-weight:700">افزودن کاربر جدید</p>' + fields({ id:'', name:'', team:'', role:'supervisor' }) +
       '<div class="u-btns"><button class="btn btn-save" id="uAddBtn" type="button">افزودن (رمز پیش‌فرض ۱۲۳۴)</button></div></div>';
 
-    const read = card => ({ name: card.querySelector('.u-name').value.trim(), id: fa2en(card.querySelector('.u-id').value), team: card.querySelector('.u-team').value, role: card.querySelector('.u-role').value, perm: card.querySelector('.u-perm').value });
+    const read = card => ({ name: card.querySelector('.u-name').value.trim(), id: fa2en(card.querySelector('.u-id').value), team: card.querySelector('.u-team').value, role: card.querySelector('.u-role').value, perm: card.querySelector('.u-perm').checked ? 'edit' : 'view', notifyUnsub: card.querySelector('.u-nun').checked });
     const syncSup = async (oldName, f) => {   // فهرست مسئولین شیفت (برای فرم گزارش) با نام حساب هماهنگ بماند
       if (f.role !== 'supervisor') return;
       const i = oldName ? SUPERVISORS.indexOf(oldName) : -1;
@@ -2734,6 +2931,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     };
     const done = async m => { if (m) alert(m); await window.renderUsersAdmin(); try{ renderPeopleAdmin(); }catch(e){} };
 
+    wrap.querySelectorAll('.u-card').forEach(card => { const rs = card.querySelector('.u-role'), eb = card.querySelector('.u-expert'); if (rs && eb) rs.onchange = () => { eb.style.display = rs.value === 'admin' ? '' : 'none'; }; });
     wrap.querySelectorAll('.u-card[data-id]').forEach(card => {
       const oldId = card.dataset.id;
       card.querySelector('.u-save').onclick = async () => {
@@ -2753,7 +2951,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
         if (!ok) return;
         if (f.id !== oldId){ await resetPass(oldId); await resetPass(f.id); }
         await syncSup(oldName, f);
-        audit('ویرایش حساب', f.name + ' (' + f.id + ') · نقش ' + f.role + (f.role === 'admin' ? ' · دسترسی ' + f.perm : ''));
+        audit('ویرایش حساب', f.name + ' (' + f.id + ') · نقش ' + f.role + (f.role === 'admin' ? ' · ' + (f.perm === 'edit' ? 'ویرایش و ثبت گزارش' : 'فقط نمایش') + ' · اعلان عدم ثبت ' + (f.notifyUnsub ? 'دارد' : 'ندارد') : ''));
         if (self){ CUR.name = f.name; CUR.team = f.team; }
         await done('ذخیره شد.' + (f.id !== oldId ? ' رمز این کاربر به ۱۲۳۴ برگشت.' : ''));
       };
@@ -2785,7 +2983,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   const su = ses && (cachedUsers() || SEED).find(x => x.id === ses.id);
   if (su){
     applyUser(su); hideGate();
-    (async () => {   // بی‌صدا با سرور تطبیق می‌دهیم: حذف حساب، تغییر رمز، تغییر نقش یا تیم
+    (async () => {   // بی‌صدا با سرور تطبیق می‌دهیم: حذف حساب، تغییر رمز، تغییر نقش یا شیفت
       try{
         const users = await fetchUsers(); const u = users.find(x => x.id === ses.id);
         if (!u){ logout('حساب شما حذف شده است.'); return; }
@@ -2844,7 +3042,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
             (cons.length ? '<div style="margin-top:6px">اقلام مصرفی:</div>' + cons.map(c => '<div class="xc-sub" style="color:inherit">• ' + escH(c.name || '-') + ' — ' + escH(c.amount || '') + ' ' + escH(c.unit || '') + (c.location ? ' · ' + escH(c.location) : '') + '</div>').join('') : '') +
             (rec.notes ? '<div style="margin-top:6px">توضیحات: ' + escH(rec.notes) + '</div>' : '');
         }
-        return '<div class="xc-item"><b>' + SH[k] + '</b> — تیم ' + escH(teamOf(d, k)) + (locked ? '<span class="xc-pill ok">🔒 نهایی' + (lk.by ? ' · ' + escH(lk.by) : '') + '</span>' : '') + '<div>' + b + '</div></div>';
+        return '<div class="xc-item"><b>' + SH[k] + '</b> — شیفت ' + escH(teamOf(d, k)) + (locked ? '<span class="xc-pill ok">🔒 نهایی' + (lk.by ? ' · ' + escH(lk.by) : '') + '</span>' : '') + '<div>' + b + '</div></div>';
       }).join('');
     };
     inp.onchange = show; qs('vwBtn').onclick = show; show();
@@ -2860,7 +3058,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       (rec.activities || []).forEach(a => { if (a.referred && a.referrerName === me) items.push({ d: p[1], sk: p[2], desc: stripReferralSuffix(a.desc), st: (a.workType && (a.performedBy || []).length) ? 'ok' : 'in', a: a }); }); });
     items.sort((x, y) => y.d.localeCompare(x.d));
     const lab = { wait:'در انتظار شیفت مقصد', in:'وارد گزارش شد', ok:'انجام شد' };
-    out.innerHTML = items.length ? items.map(it => '<div class="xc-item"><div>' + escH(it.desc) + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + ' · تیم ' + escH(teamOf(it.d, it.sk)) +
+    out.innerHTML = items.length ? items.map(it => '<div class="xc-item"><div>' + escH(it.desc) + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + ' · شیفت ' + escH(teamOf(it.d, it.sk)) +
       '<span class="xc-pill ' + (it.st === 'ok' ? 'ok' : 'wait') + '">' + lab[it.st] + '</span>' + (it.a && it.a.performedBy && it.a.performedBy.length ? ' · ' + escH(normalizePerformedBy(it.a).join('، ')) : '') + '</div></div>').join('')
       : '<p class="people-empty">در ۳۰ روز اخیر ارجاعی به نام شما ثبت نشده است. (ارجاع‌های قبل از به‌روزرسانی اسم ارجاع‌دهنده ندارند.)</p>';
   };
@@ -2874,7 +3072,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     const done = [], from14 = addDays(todayS, -14);
     Object.keys(reportsStore).forEach(k => { const rec = reportsStore[k], p = k.split(':'); if (!rec || p[1] < from14) return; (rec.activities || []).forEach(a => { if (a.referred) done.push({ d: p[1], sk: p[2], a: a }); }); });
     done.sort((x, y) => y.d.localeCompare(x.d));
-    out.innerHTML = '<p class="u-lbl" style="font-weight:700">در انتظار (' + nfa(pend.length) + ')</p>' + (pend.length ? pend.map(it => '<div class="xc-item"><div>' + escH(stripReferralSuffix(it.t)) + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + ' · تیم ' + escH(teamOf(it.d, it.sk)) +
+    out.innerHTML = '<p class="u-lbl" style="font-weight:700">در انتظار (' + nfa(pend.length) + ')</p>' + (pend.length ? pend.map(it => '<div class="xc-item"><div>' + escH(stripReferralSuffix(it.t)) + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + ' · شیفت ' + escH(teamOf(it.d, it.sk)) +
         (referrerOf(it.t) ? ' · از ' + escH(referrerOf(it.t)) : '') + (isAdminReferral(it.t) ? ' · سمت کارشناس' : '') + '</div><div class="xc-btns"><button data-act="ed" data-k="' + escH(it.k) + '" data-i="' + it.i + '">ویرایش</button><button data-act="rm" data-k="' + escH(it.k) + '" data-i="' + it.i + '" style="color:var(--red)">حذف</button></div></div>').join('') : '<p class="people-empty">ارجاع در انتظاری وجود ندارد.</p>') +
       '<p class="u-lbl" style="font-weight:700;margin-top:14px">وارد گزارش‌شده (۱۴ روز اخیر: ' + nfa(done.length) + ')</p>' + (done.length ? done.map(it => '<div class="xc-item"><div>' + escH(stripReferralSuffix(it.a.desc) || '-') + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + tagFor(it.a) +
         '<span class="xc-pill ' + ((it.a.workType && (it.a.performedBy || []).length) ? 'ok' : 'wait') + '">' + ((it.a.workType && (it.a.performedBy || []).length) ? 'انجام شد' : 'هنوز تکمیل نشده') + '</span></div></div>').join('') : '<p class="people-empty">موردی نیست.</p>');
@@ -2908,10 +3106,10 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     const send = (it, btn) => {
       const key = 'nudge:' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
       queueRaw(key, { team: it.team, title: 'یادآوری ثبت گزارش — ' + SH[it.k], body: 'گزارش ' + SH[it.k] + ' ' + jal(it.d) + ' هنوز ثبت نشده است.', by: myName(), t: Date.now(), sent: false });
-      audit('یادآوری گزارش ثبت‌نشده', it.d + ' · ' + SH[it.k] + ' · تیم ' + it.team);
+      audit('یادآوری گزارش ثبت‌نشده', it.d + ' · ' + SH[it.k] + ' · شیفت ' + it.team);
       if (btn){ btn.textContent = 'ارسال شد ✓'; btn.disabled = true; }
     };
-    out.innerHTML = '<div class="btn-row" style="margin-bottom:10px"><button class="btn btn-save" id="unAll" type="button">یادآوری به همه (' + nfa(list.length) + ')</button></div>' + list.map((it, i) => '<div class="xc-item"><b>' + SH[it.k] + '</b> — ' + escH(jal(it.d)) + '<div class="xc-sub">تیم ' + escH(it.team) + (it.owner ? ' · ' + escH(it.owner) : '') + '</div><div class="xc-btns"><button data-i="' + i + '">یادآوری</button></div></div>').join('');
+    out.innerHTML = '<div class="btn-row" style="margin-bottom:10px"><button class="btn btn-save" id="unAll" type="button">یادآوری به همه (' + nfa(list.length) + ')</button></div>' + list.map((it, i) => '<div class="xc-item"><b>' + SH[it.k] + '</b> — ' + escH(jal(it.d)) + '<div class="xc-sub">شیفت ' + escH(it.team) + (it.owner ? ' · ' + escH(it.owner) : '') + '</div><div class="xc-btns"><button data-i="' + i + '">یادآوری</button></div></div>').join('');
     out.querySelectorAll('button[data-i]').forEach(b => { b.onclick = () => send(list[+b.dataset.i], b); });
     qs('unAll').onclick = () => { if (!confirm('برای ' + list.length + ' شیفت یادآوری ارسال شود؟')) return; out.querySelectorAll('button[data-i]').forEach(b => { if (!b.disabled) send(list[+b.dataset.i], b); }); };
   };
@@ -2972,7 +3170,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     const rows = Object.keys(all).map(k => ({ k: k, v: all[k] })).filter(x => x.v && !x.v.deleted && x.v.token).sort((a, b) => (a.v.team || '').localeCompare(b.v.team || ''));
     const names = new Set(rows.map(x => x.v.name));
     const missing = us.filter(u => !names.has(u.name));
-    out.innerHTML = '<p class="u-lbl">' + nfa(rows.length) + ' گوشی ثبت شده است.</p>' + rows.map((x, i) => '<div class="xc-item"><b>' + escH(x.v.name || '-') + '</b> · ' + (x.v.team === 'admin' ? 'کارشناس/ادمین' : 'تیم ' + escH(x.v.team || '-')) +
+    out.innerHTML = '<p class="u-lbl">' + nfa(rows.length) + ' گوشی ثبت شده است.</p>' + rows.map((x, i) => '<div class="xc-item"><b>' + escH(x.v.name || '-') + '</b> · ' + (x.v.team === 'admin' ? 'کارشناس/ادمین' : 'شیفت ' + escH(x.v.team || '-')) +
       '<div class="xc-sub">ثبت: ' + escH(new Date(x.v.t || 0).toLocaleDateString('fa-IR')) + ' · …' + escH(String(x.v.token).slice(-6)) + '</div><div class="xc-btns"><button data-i="' + i + '" style="color:var(--red)">حذف</button></div></div>').join('') +
       (missing.length ? '<p class="u-lbl" style="margin-top:10px;font-weight:700">بدون گوشی ثبت‌شده:</p><div class="xc-item">' + missing.map(u => escH(u.name) + ' (' + roleFa(u.role) + ')').join('<br>') + '</div>' : '');
     out.querySelectorAll('button[data-i]').forEach(b => { b.onclick = async () => {
