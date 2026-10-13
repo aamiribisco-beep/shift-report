@@ -12,9 +12,9 @@ try{
 
 /* Service Worker — Shift Report
    خود برنامه: اول از حافظه (فوری)، هم‌زمان نسخه‌ی تازه در پس‌زمینه گرفته می‌شود و دفعه‌ی بعد اعمال می‌شود. */
-const VER = 'v21';
+const VER = 'v22';
 const SHELL_CACHE = 'shift-shell-' + VER, LIB_CACHE = 'shift-lib-' + VER;
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './icon-180.png'];
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './icon-180.png', './jszip.min.js'];
 const LIB_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
