@@ -372,7 +372,7 @@
       </div>
 
       <div class="admin-section" id="adm-referral">
-        <label>ارجاع کار به شیفت (توسط ادمین)</label>
+        <label>ارجاع کار به شیفت (توسط کارشناس)</label>
         <p class="u-lbl">روز</p>
         <select id="arDay"></select>
         <p class="u-lbl">شیفت (تیم و مسئول آن شیفت)</p>
@@ -484,6 +484,7 @@ function computeTeams(date, refDate, order){
 
 let CONFIG = { refDate:'2026-09-03', order:['C','D','A','B'] };
 let isAdmin = false;
+let isOwner = false;   // نقش «ادمین» (owner): دسترسی کامل؛ isAdmin برای کارشناس و ادمین هر دو true است
 
 const today = stripTime(new Date());
 let selectedDate = stripTime(new Date());
@@ -1127,7 +1128,7 @@ function activityRowHtml(rowIndex, a, availableNames, shiftKey){
   const locked = referred && !adminOverride;
   const descValue = referred ? stripReferralSuffix(a.desc) : (a.desc||'');
   const byAdmin = referred && a.referredBy === 'admin';
-  const refTagText = byAdmin ? 'ارجاع شده از سمت ادمین' : 'ارجاع شده از شیفت قبل';
+  const refTagText = byAdmin ? 'ارجاع شده از سمت کارشناس' : 'ارجاع شده از شیفت قبل';
   return `<tr${referred ? ' class="act-row-referred" data-referred="1"' + (byAdmin ? ' data-referred-by="admin"' : '') : ''}>
       <td class="act-no">${rowIndex+1}</td>
       <td class="act-time">${timeDropdownHtml(rowIndex, a.timeFrom||'', a.timeTo||'', shiftKey)}</td>
@@ -1760,7 +1761,7 @@ function render(){
                 const performedByStr = normalizePerformedBy(a).join('، ');
                 return `<li>
                   ${timeStr ? `<span class="submitted-act-time">${escapeAttr(timeStr)}</span>` : ''}
-                  <span class="submitted-act-desc">${escapeAttr(stripReferralSuffix(a.desc)||'-')}</span>${a.referredBy === 'admin' ? '<span class="act-referred-tag"> (ارجاع شده از سمت ادمین)</span>' : ''}
+                  <span class="submitted-act-desc">${escapeAttr(stripReferralSuffix(a.desc)||'-')}</span>${a.referredBy === 'admin' ? '<span class="act-referred-tag"> (ارجاع شده از سمت کارشناس)</span>' : ''}
                   ${performedByStr ? `<span class="submitted-act-by"> — ${escapeAttr(performedByStr)}</span>` : ''}
                 </li>`;
               }).join('')}
@@ -1928,22 +1929,27 @@ function fillRotation(){
   document.getElementById('refDateInput').value = CONFIG.refDate;
   for (let i = 0; i < 4; i++) document.getElementById('pos' + i).value = CONFIG.order[i];
 }
-const ADMIN_CARDS = [
+const EXPERT_CARDS = [   // کارشناس
   { id:'adm-excel',    title:'خروجی اکسل',           sub:'گزارش‌ها در یک بازه‌ی تاریخ' },
   { id:'adm-referral', title:'ارجاع کار به شیفت',     sub:'ثبت کار برای هر شیفت دلخواه', onOpen: () => { if (window.renderAdminReferral) window.renderAdminReferral(); } },
+];
+const OWNER_CARDS = EXPERT_CARDS.concat([   // ادمین (دسترسی کامل)
   { id:'adm-rotation', title:'ترتیب چرخش تیم‌ها',     sub:'تاریخ مرجع و ترتیب تیم‌ها', onOpen: fillRotation },
   { id:'adm-users',    title:'حساب‌های کاربری',       sub:'نام، نام کاربری، تیم، نقش و رمز', onOpen: () => { if (window.renderUsersAdmin) window.renderUsersAdmin(); } },
   { id:'adm-sup',      title:'فهرست مسئولین شیفت',   sub:'', onOpen: () => renderPeopleAdmin() },
   { id:'adm-staff',    title:'فهرست پرسنل (حاضرین)', sub:'', onOpen: () => renderPeopleAdmin() },
-];
+]);
+let mountedKind = '';
 function mountAdminRows(){   // با هر تغییر نقش (ورود/خروج) صدا زده می‌شود؛ رندر شیفت‌ها به این بخش دست نمی‌زند
-  if (!isAdmin){
+  const kind = isOwner ? 'owner' : (isAdmin ? 'expert' : '');
+  if (kind !== mountedKind || !kind){   // تغییر نقش: کارت‌های قبلی را به جای اصلی برگردان
     adminRowsEl.querySelectorAll('.admin-section').forEach(sec => adminHolder.appendChild(sec));
     adminRowsEl.innerHTML = '';
-    return;
+    mountedKind = '';
   }
-  if (adminRowsEl.children.length) return;
-  ADMIN_CARDS.forEach(c => {
+  if (!kind || adminRowsEl.children.length) return;
+  mountedKind = kind;
+  (isOwner ? OWNER_CARDS : EXPERT_CARDS).forEach(c => {
     const sec = document.getElementById(c.id); if (!sec) return;
     const row = document.createElement('div'); row.className = 'row adm-row';
     const main = document.createElement('div'); main.className = 'row-main';
@@ -2054,7 +2060,7 @@ document.getElementById('exportBtn').onclick = async () => {
         acts.forEach((a, idx) => {
           const performedByStr = normalizePerformedBy(a).join('، ');
           const timeStr = (a.timeFrom && a.timeTo) ? `${a.timeFrom} - ${a.timeTo}` : '';
-          rows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', attendeesStr, 'ثبت شده', idx+1, timeStr, (a.desc||'') + (a.referredBy === 'admin' ? ADMIN_REF_SUFFIX : ''), a.workOrder||'', a.workType||'', performedByStr]);
+          rows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', attendeesStr, 'ثبت شده', idx+1, timeStr, (a.desc||'') + (a.referredBy === 'admin' ? ' (ارجاع شده از سمت کارشناس)' : ''), a.workOrder||'', a.workType||'', performedByStr]);
         });
       }
     }
@@ -2225,7 +2231,8 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     { id:'22867', name:'مصطفی جعفری',          role:'supervisor', team:'B' },
     { id:'22975', name:'امیرحسین امیرماهانی', role:'supervisor', team:'C' },
     { id:'22447', name:'امیرحسین احمدی',       role:'supervisor', team:'D' },
-    { id:'23008', name:'معین محبی‌زاده',       role:'admin',      team:'' }
+    { id:'23008', name:'معین محبی‌زاده',       role:'admin',      team:'' },   // کارشناس
+    { id:'10001', name:'ادمین',                role:'owner',      team:'' }    // ادمین (دسترسی کامل)؛ رمز اولیه ۱۲۳۴ — حتماً بعد از اولین ورود عوض شود
   ];
   const DEFAULT_PASS = '1234';
   const REMEMBER_LOGIN = true;
@@ -2260,8 +2267,13 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     else { const res = await gasGet({ action:'get', key:'users-list' }); a = (res && res.value) ? JSON.parse(res.value) : null; }
     if (!validUsers(a)) a = SEED.map(u => Object.assign({}, u));
     let fixed = false;
+    if (!a.some(u => u.role === 'owner')){   // مهاجرت: لیست ذخیره‌شده‌ی قبلی حساب ادمین ندارد
+      const sd = SEED.find(u => u.role === 'owner'); const clash = a.find(u => u.id === sd.id);
+      if (clash) clash.role = 'owner'; else a.push(Object.assign({}, sd));
+      fixed = true;
+    }
     SEED.forEach(sd => { const x = a.find(u => u.id === sd.id); if (x && sd.team && !x.tf){ x.team = sd.team; x.tf = 1; fixed = true; } });
-    if (fixed && gasConfigured()){ try{ safeSet('users-list', a); }catch(e){} }   // بی‌صدا در شیت ذخیره می‌شود
+    if (fixed){ try{ safeSet('users-list', a); }catch(e){} }   // بی‌صدا در شیت ذخیره می‌شود
     try{ localStorage.setItem(UKEY, JSON.stringify(a)); }catch(e){}
     return a;
   }
@@ -2296,13 +2308,13 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   function hideGate(){ gate.style.display = 'none'; }
 
   function applyUser(u){
-    CUR = u; isAdmin = (u.role === 'admin');
+    CUR = u; isAdmin = (u.role === 'admin' || u.role === 'owner'); isOwner = (u.role === 'owner');
     try{ mountAdminRows(); }catch(e){}   // کارت‌های مدیریت (بعد از سه شیفت) فقط برای ادمین
     addUserBtn();
   }
   async function logout(t){
     try{ store.removeItem(SKEY); localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY); }catch(e){}
-    CUR = null; isAdmin = false;
+    CUR = null; isAdmin = false; isOwner = false;
     try{ mountAdminRows(); }catch(e){}
     uI.value = ''; showGate(t);
     try{ if (window.pushApi && window.pushApi.getReg()) await Promise.race([window.pushApi.unregister(), new Promise(r => setTimeout(r, 4000))]); }catch(e){}   // این گوشی دیگر اعلان نگیرد
@@ -2346,7 +2358,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
 
   /* ----- تیم و اعلان (بر اساس حساب) ----- */
   function afterLogin(u, fresh){
-    if (u.role !== 'admin' && !u.team){ askTeam(u, fresh); return; }
+    if (!isStaff(u) && !u.team){ askTeam(u, fresh); return; }
     syncPush(u, fresh);
   }
   function askTeam(u, fresh){
@@ -2362,7 +2374,8 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       u.team = team; w.close(); syncPush(u, fresh);
     };
   }
-  const pushTeam = u => u.team || (u.role === 'admin' ? 'admin' : '');   // ادمین تیم ندارد؛ با برچسب admin ثبت می‌شود
+  const isStaff = u => !!u && (u.role === 'admin' || u.role === 'owner');
+  const pushTeam = u => u.team || (isStaff(u) ? 'admin' : '');   // ادمین تیم ندارد؛ با برچسب admin ثبت می‌شود
   const isStandalone = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   async function syncPush(u, fresh){
     const pt = pushTeam(u);
@@ -2382,7 +2395,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   }
   // پنجره‌ی اجباری اعلان: بسته‌شدنی نیست؛ فقط با فعال‌سازی اعلان (یا خروج از حساب) از بین می‌رود
   function pushGate(u, pt, api){
-    const adm = u.role === 'admin';
+    const adm = isStaff(u);
     const w = modal('<h2 id="pushAsk">فعال‌سازی اعلان (الزامی)</h2><p id="pgTxt" style="font-size:13px;color:var(--muted);line-height:1.9;margin:-6px 0 14px"></p>' +
       '<p class="auth-msg" id="mMsg"></p><button class="auth-main" id="pOk"></button><button class="auth-sec" id="pOut">خروج از حساب</button>');
     let busy = false, done = false, autoTried = false;
@@ -2435,13 +2448,13 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     if (!api || !api.supported) return { t: 'اعلان: این مرورگر پشتیبانی نمی‌کند (روی آیفون برنامه را با «Add to Home Screen» نصب و از روی آیکون باز کنید).', btn: false };
     if (Notification.permission === 'denied') return { t: 'اعلان: اجازه برای این سایت مسدود است؛ از تنظیمات مرورگر روی «Allow» بگذارید.', btn: false };
     const r = api.getReg();
-    if (r && Notification.permission === 'granted' && r.team === pt) return { t: CUR.role === 'admin' ? '🔔 اعلان فعال است — اگر گزارش یکی از شیفت‌ها تا پایان مهلت ثبت نشود به شما خبر داده می‌شود.' : '🔔 اعلان فعال است — مسئول شیفت ' + CUR.team + '، کارهای ارجاعی همان لحظه برایتان می‌آید.', btn: false };
-    return { t: CUR.role === 'admin' ? 'اعلان گزارش ثبت‌نشده روی این گوشی فعال نیست.' : 'اعلان روی این گوشی فعال نیست (مسئول شیفت ' + CUR.team + ').', btn: true };
+    if (r && Notification.permission === 'granted' && r.team === pt) return { t: isStaff(CUR) ? '🔔 اعلان فعال است — اگر گزارش یکی از شیفت‌ها تا پایان مهلت ثبت نشود به شما خبر داده می‌شود.' : '🔔 اعلان فعال است — مسئول شیفت ' + CUR.team + '، کارهای ارجاعی همان لحظه برایتان می‌آید.', btn: false };
+    return { t: isStaff(CUR) ? 'اعلان گزارش ثبت‌نشده روی این گوشی فعال نیست.' : 'اعلان روی این گوشی فعال نیست (مسئول شیفت ' + CUR.team + ').', btn: true };
   }
   function openUserModal(){
     if (!CUR) return;
     const pl = pushLine();
-    const w = modal('<h2>' + esc(CUR.name) + '</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-8px 0 14px">' + (CUR.role === 'admin' ? 'ادمین' : (CUR.team ? 'مسئول شیفت ' + esc(CUR.team) : 'سرشیفت')) + '</p>' +
+    const w = modal('<h2>' + esc(CUR.name) + '</h2><p style="font-size:13px;color:var(--muted);line-height:1.9;margin:-8px 0 14px">' + (CUR.role === 'owner' ? 'ادمین' : CUR.role === 'admin' ? 'کارشناس' : (CUR.team ? 'مسئول شیفت ' + esc(CUR.team) : 'سرشیفت')) + '</p>' +
       '<p style="font-size:13px;line-height:1.9;margin:0 0 6px" id="pLine">' + esc(pl.t) + '</p>' +
       (pl.btn ? '<button class="auth-sec" id="pEnable" style="margin:0 0 14px">فعال‌سازی اعلان</button>' : '<div style="height:10px"></div>') +
       '<label>رمز فعلی</label><input type="password" id="cpOld" autocomplete="current-password">' +
@@ -2481,9 +2494,9 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   /* ----- پنل ادمین: ارجاع کار به هر شیفت دلخواه ----- */
   window.renderAdminReferral = async function(){
     const daySel = $('arDay'), shSel = $('arShift'), txt = $('arText'), btn = $('arBtn'), note = $('arNote');
-    if (!daySel || !CUR || CUR.role !== 'admin') return;
+    if (!daySel || !CUR || !isStaff(CUR)) return;
     let users = cachedUsers() || SEED; try{ users = await fetchUsers(); }catch(e){}
-    const ownerOf = team => { const u = users.find(x => x.role !== 'admin' && x.team === team); return u ? u.name : ''; };
+    const ownerOf = team => { const u = users.find(x => !isStaff(x) && x.team === team); return u ? u.name : ''; };
     const nfa = n => Number(n).toLocaleString('fa-IR', { useGrouping:false });
     const say2 = (t, ok) => { note.textContent = t || ''; note.className = 'auth-msg' + (ok ? ' ok' : ''); };
     const fillShifts = () => {
@@ -2528,7 +2541,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     const teams = teamsList();
     const opt = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + l + '</option>';
     const teamOpts = t => opt('', 'بدون تیم', !t) + teams.map(x => opt(x, 'تیم ' + x, x === t)).join('');
-    const roleOpts = r => opt('supervisor', 'سرشیفت', r !== 'admin') + opt('admin', 'ادمین', r === 'admin');
+    const roleOpts = r => opt('supervisor', 'سرشیفت', r !== 'admin' && r !== 'owner') + opt('admin', 'کارشناس', r === 'admin') + opt('owner', 'ادمین', r === 'owner');
     const fields = u => '<p class="u-lbl">نام</p><input class="u-name" value="' + esc(u.name) + '" placeholder="نام و نام خانوادگی">' +
       '<p class="u-lbl">نام کاربری</p><input class="u-id" inputmode="numeric" value="' + esc(u.id) + '" placeholder="نام کاربری"' + (CUR && u.id === CUR.id ? ' disabled' : '') + '>' +
       '<p class="u-lbl">تیم</p><select class="u-team">' + teamOpts(u.team || '') + '</select>' +
@@ -2554,14 +2567,14 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
         const f = read(card);
         if (!f.name || !f.id){ alert('نام و نام کاربری نباید خالی باشد.'); return; }
         if (/\s/.test(f.id)){ alert('نام کاربری نباید فاصله داشته باشد.'); return; }
-        const self = CUR && oldId === CUR.id; if (self){ f.id = oldId; f.role = 'admin'; }
+        const self = CUR && oldId === CUR.id; if (self){ f.id = oldId; f.role = CUR.role; }
         if (f.id !== oldId && !confirm('با تغییر نام کاربری، رمز این کاربر به رمز پیش‌فرض (۱۲۳۴) برمی‌گردد. ادامه می‌دهید؟')) return;
         let oldName = '';
         const ok = await mutateUsers(l => {
           const u = l.find(x => x.id === oldId); if (!u) return 'کاربر پیدا نشد.';
           if (f.id !== oldId && l.some(x => x.id === f.id)) return 'این نام کاربری قبلاً استفاده شده است.';
           oldName = u.name; Object.assign(u, f);
-          if (!l.some(x => x.role === 'admin')) return 'حداقل یک ادمین باید وجود داشته باشد.';
+          if (!l.some(x => x.role === 'owner')) return 'حداقل یک ادمین باید وجود داشته باشد.';
           return null;
         });
         if (!ok) return;
@@ -2579,7 +2592,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
         if (!confirm('این حساب حذف شود؟ (گزارش‌های قبلی او می‌مانند)')) return;
         const ok = await mutateUsers(l => {
           const i = l.findIndex(x => x.id === oldId); if (i < 0) return 'کاربر پیدا نشد.';
-          l.splice(i, 1); if (!l.some(x => x.role === 'admin')) return 'حداقل یک ادمین باید وجود داشته باشد.'; return null;
+          l.splice(i, 1); if (!l.some(x => x.role === 'owner')) return 'حداقل یک ادمین باید وجود داشته باشد.'; return null;
         });
         if (!ok) return; await resetPass(oldId); await done('حذف شد.');
       };
