@@ -351,6 +351,14 @@
           <div><input type="date" id="fromDate"></div>
           <div><input type="date" id="toDate"></div>
         </div>
+        <div class="date-range-row" style="margin-top:8px">
+          <div><select id="xfTeam"><option value="">همه‌ی تیم‌ها</option><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
+          <div><select id="xfShift"><option value="">همه‌ی شیفت‌ها</option><option value="day">صبح‌کار</option><option value="evening">عصرکار</option><option value="night">شب‌کار</option></select></div>
+        </div>
+        <div class="date-range-row" style="margin-top:8px">
+          <div><select id="xfType"><option value="">همه‌ی انواع کار</option><option>PM</option><option>CM</option><option>EM</option></select></div>
+          <div><select id="xfMine"><option value="">همه‌ی فعالیت‌ها</option><option value="1">فقط ارجاع‌های ثبت‌شده توسط من</option></select></div>
+        </div>
         <div class="btn-row">
           <button class="btn btn-save" id="exportBtn">دریافت خروجی اکسل</button>
         </div>
@@ -377,10 +385,68 @@
         <select id="arDay"></select>
         <p class="u-lbl">شیفت (تیم و مسئول آن شیفت)</p>
         <select id="arShift"></select>
-        <p class="u-lbl">شرح کار</p>
+        <p class="u-lbl">ارسال برای</p>
+        <select id="arScope"><option value="one">فقط همین شیفت</option><option value="all">هر سه شیفت آن روز</option></select>
+        <p class="u-lbl">تکرار</p>
+        <div style="display:flex; gap:8px;">
+          <select id="arRepeat" style="margin-bottom:0"><option value="none">یک‌بار</option><option value="daily">هر روز</option><option value="weekly">هر هفته</option></select>
+          <input type="number" id="arCount" min="2" max="14" value="3" placeholder="تعداد دفعات" style="display:none; margin-bottom:0; max-width:120px">
+        </div>
+        <p class="u-lbl" style="margin-top:8px">شرح کار</p>
         <input type="text" id="arText" placeholder="شرح کاری که باید در آن شیفت انجام شود">
         <p class="auth-msg" id="arNote" style="min-height:18px"></p>
         <div class="btn-row"><button class="btn btn-save" id="arBtn" type="button">ارجاع کار</button></div>
+      </div>
+
+
+      <div class="admin-section" id="adm-view">
+        <label>مشاهده‌ی گزارش‌ها (فقط نمایش)</label>
+        <div style="display:flex; gap:8px; margin-bottom:10px;"><input type="date" id="vwDate" style="margin-bottom:0"><button class="btn btn-save" id="vwBtn" type="button">نمایش</button></div>
+        <div id="vwOut"></div>
+      </div>
+
+      <div class="admin-section" id="adm-refstatus">
+        <label>وضعیت ارجاع‌هایی که من داده‌ام</label>
+        <div id="rsOut"></div>
+      </div>
+
+      <div class="admin-section" id="adm-refmgr">
+        <label>مدیریت ارجاع‌ها (ویرایش و حذف ارجاع‌های در انتظار)</label>
+        <div id="rmOut"></div>
+      </div>
+
+      <div class="admin-section" id="adm-unsub">
+        <label>گزارش‌های ثبت‌نشده (۸ روز اخیر)</label>
+        <div id="unOut"></div>
+      </div>
+
+      <div class="admin-section" id="adm-audit">
+        <label>سابقه‌ی تغییرات</label>
+        <div style="display:flex; gap:8px; margin-bottom:10px;"><select id="auMonth" style="margin-bottom:0"></select><input type="text" id="auSearch" placeholder="جستجو (نام، کار، تاریخ…)" style="margin-bottom:0"></div>
+        <div id="auOut"></div>
+      </div>
+
+      <div class="admin-section" id="adm-backup">
+        <label>پشتیبان‌گیری و بازگردانی</label>
+        <p class="u-lbl">شامل گزارش‌ها، ارجاع‌ها، قفل‌ها، فهرست‌ها، حساب‌ها (بدون رمز) و تنظیمات است.</p>
+        <div class="btn-row"><button class="btn btn-save" id="bkDownload" type="button">دریافت فایل پشتیبان</button></div>
+        <p class="u-lbl" style="margin-top:14px">بازگردانی از فایل پشتیبان (داده‌های هم‌نام جایگزین می‌شوند)</p>
+        <input type="file" id="bkFile" accept=".json,application/json">
+        <p class="auth-msg" id="bkMsg" style="min-height:18px"></p>
+        <div class="btn-row"><button class="btn btn-cancel" id="bkRestore" type="button">بازگردانی</button></div>
+      </div>
+
+      <div class="admin-section" id="adm-settings">
+        <label>بازه‌ی ثبت گزارش هر شیفت</label>
+        <p class="u-lbl">ساعت شروع و پایان (۰ تا ۲۴). برای شب‌کار پایان کوچکتر از شروع یعنی صبح روز بعد. ساعت‌های انتخابی داخل فرم گزارش تغییر نمی‌کنند.</p>
+        <div id="stBody"></div>
+        <p class="auth-msg" id="stMsg" style="min-height:18px"></p>
+        <div class="btn-row"><button class="btn btn-save" id="stSave" type="button">ذخیره</button><button class="btn btn-cancel" id="stReset" type="button">بازگشت به پیش‌فرض</button></div>
+      </div>
+
+      <div class="admin-section" id="adm-devices">
+        <label>گوشی‌های دارای اعلان</label>
+        <div id="dvOut"></div>
       </div>
 
       <div class="admin-section" id="adm-users">
@@ -484,6 +550,9 @@ function computeTeams(date, refDate, order){
 
 let CONFIG = { refDate:'2026-09-03', order:['C','D','A','B'] };
 let isAdmin = false;
+let canEditAll = false;   // ادمین، یا کارشناسی که ادمین به او «ویرایش و ثبت گزارش» داده است
+let CURUSER = null;       // حساب واردشده (برای سابقه‌ی تغییرات و نام ارجاع‌دهنده)
+let locksStore = {};      // گزارش‌های نهایی‌شده (قفل): lock:تاریخ:شیفت
 let isOwner = false;   // نقش «ادمین» (owner): دسترسی کامل؛ isAdmin برای کارشناس و ادمین هر دو true است
 
 const today = stripTime(new Date());
@@ -521,6 +590,25 @@ function isEditableNow(dateStr, shiftKey){
   const now = new Date();
   return now >= start && now < end;
 }
+// قفل گزارش (نهایی‌شده توسط ادمین) و دسترسی‌ها
+const lockKeyFor = (d, k) => 'lock:' + d + ':' + k;
+function isLocked(d, k){ const v = locksStore[lockKeyFor(d, k)]; return !!(v && !v.deleted); }
+function canEditReport(d, k){
+  if (isLocked(d, k)) return isOwner;           // گزارش نهایی‌شده فقط با ادمین قابل تغییر است
+  if (isAdmin) return canEditAll;               // کارشناس: فقط اگر ادمین دسترسی ویرایش داده باشد
+  return isEditableNow(d, k);                   // سرشیفت: فقط داخل بازه‌ی شیفت
+}
+// تنظیم بازه‌های ثبت گزارش (از شیت: shift-settings)
+function applyShiftSettings(st){
+  try{
+    const w = st && st.windows; if (!w) return;
+    ['day','evening','night'].forEach(k => {
+      const x = w[k]; if (!x) return;
+      const a = Number(x.startHour), b = Number(x.endHour);
+      if (Number.isFinite(a) && Number.isFinite(b) && a >= 0 && a < 24 && b > 0 && b <= 24) SHIFT_WINDOW[k] = { startHour: a, endHour: b };
+    });
+  }catch(e){}
+}
 
 /* ---------------- Storage layer ----------------
    Primary backend: a Google Sheet, reached through a small Google Apps
@@ -540,6 +628,7 @@ function gasConfigured(){ return typeof GAS_URL === 'string' && GAS_URL.indexOf(
 // Order shifts follow within a day, and which (date, shift) comes right
 // after a given one — night rolls over to the next day's day-shift.
 const SHIFT_ORDER = ['day','evening','night'];
+const SHIFT_FA_LBL = { day:'صبح‌کار', evening:'عصرکار', night:'شب‌کار' };
 function nextShiftOf(dateStr, shiftKey){
   const idx = SHIFT_ORDER.indexOf(shiftKey);
   if (idx > -1 && idx < SHIFT_ORDER.length - 1){
@@ -636,7 +725,7 @@ const obRecent = {};   // آخرین ارسال‌های موفق (۶۰ ثانی
 function obRead(){ try{ return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '{}') || {}; }catch(e){ return {}; } }
 function obWrite(o){ try{ localStorage.setItem(OUTBOX_KEY, JSON.stringify(o)); }catch(e){} }
 function applyOutbox(){
-  const put = (k, v) => { if (k.indexOf('report:') === 0) reportsStore[k] = v; else if (k.indexOf('referral:') === 0) referralsStore[k] = v; };
+  const put = (k, v) => { if (k.indexOf('report:') === 0) reportsStore[k] = v; else if (k.indexOf('referral:') === 0) referralsStore[k] = v; else if (k.indexOf('lock:') === 0) locksStore[k] = v; };
   const now = Date.now();
   Object.keys(obRecent).forEach(k => { if (now - obRecent[k].at < 60000) put(k, obRecent[k].v); else delete obRecent[k]; });
   const o = obRead(); Object.keys(o).forEach(k => put(k, o[k].v));
@@ -684,6 +773,21 @@ function queueSet(key, obj){
   const t = Date.now(), o = obRead(); o[key] = { v: obj, t: t }; obWrite(o);
   obPaint(); obFlush();
   return t;
+}
+// مثل queueSet ولی بدون نگه‌داشتن نسخه در localStorage (برای کلیدهای پرحجم مثل سابقه‌ی تغییرات)
+function queueRaw(key, obj){
+  if (!gasConfigured()) return null;
+  const t = Date.now(), o = obRead(); o[key] = { v: obj, t: t }; obWrite(o);
+  obPaint(); obFlush();
+  return t;
+}
+// سابقه‌ی تغییرات: چه کسی، کی، چه کاری کرد (فقط ادمین می‌بیند)
+function audit(action, detail){
+  try{
+    const now = new Date();
+    const key = 'audit:' + isoDate(now) + ':' + now.getTime() + '-' + Math.random().toString(36).slice(2, 6);
+    queueRaw(key, { t: now.getTime(), by: (CURUSER && CURUSER.name) || '', id: (CURUSER && CURUSER.id) || '', role: (CURUSER && CURUSER.role) || '', action: action, detail: detail || '' });
+  }catch(e){}
 }
 // منتظر می‌ماند تا همین مقدار به سرور برسد (true) یا خطا/مهلت تمام شود (false). برای نمایش چرخش و تیک سبز داخل دکمه.
 function waitSent(key, t, ms){
@@ -822,7 +926,9 @@ function viewMonthKeys(){
 async function loadMonths(months, force){
   const need = months.filter(m => force || (!allLoaded && !loadedMonths.has(m)));
   if (!need.length) return true;
+  const lockP = safeGetPrefix('lock:');
   const res = await Promise.all(need.flatMap(m => [safeGetPrefix('report:' + m), safeGetPrefix('referral:' + m)]));
+  const lk = await lockP; if (lk) locksStore = lk;
   let ok = true;
   need.forEach((m, i) => {
     const rep = res[2 * i], ref = res[2 * i + 1];
@@ -890,7 +996,8 @@ async function loadConfig(prefetchedConfigPing){
 }
 // رمز مدیر و فهرست نفرات برای اولین نمایش لازم نیستند؛ در پس‌زمینه گرفته می‌شوند
 async function loadConfigExtras(){
-  const [sup, staff] = await Promise.all([safeGet('supervisors-list'), safeGet('staff-list')]);
+  const [sup, staff, shs] = await Promise.all([safeGet('supervisors-list'), safeGet('staff-list'), safeGet('shift-settings')]);
+  applyShiftSettings(shs);
   if (Array.isArray(sup) && sup.length) SUPERVISORS = sup;
   if (Array.isArray(staff) && staff.length) STAFF = staff;
 }
@@ -1116,7 +1223,15 @@ const REFERRAL_SUFFIX_RE = /\s*\((?:ارجاع شده از شیفت قبل|ار�
 // ارجاعِ ادمین با همین عبارت انتهای متن ذخیره می‌شود (فرمت ذخیره همان آرایه‌ی متن می‌ماند و اعلان‌های Notify.gs هم آن را می‌بینند)
 const ADMIN_REF_SUFFIX = ' (ارجاع شده از سمت ادمین)';
 const isAdminReferral = t => /\(ارجاع شده از سمت ادمین\)\s*$/.test(String(t || ''));
-function stripReferralSuffix(desc){ return String(desc||'').replace(REFERRAL_SUFFIX_RE, ''); }
+// نام ارجاع‌دهنده در انتهای متن (قبل از برچسب ادمین) به شکل «(ارجاع‌دهنده: نام)» ذخیره می‌شود؛ فرمت ذخیره همان آرایه‌ی متن می‌ماند
+const REF_BY_RE = /\s*\(ارجاع‌دهنده:\s*([^)]*)\)\s*$/;
+function stripReferralSuffix(desc){ return String(desc||'').replace(REFERRAL_SUFFIX_RE, '').replace(REF_BY_RE, ''); }
+function referrerOf(text){ const m = String(text||'').replace(REFERRAL_SUFFIX_RE, '').match(REF_BY_RE); return m ? m[1].trim() : ''; }
+function makeRefText(text, name, byAdmin){
+  const n = String(name||'').replace(/[()]/g, '').trim();
+  return text + (n ? ' (ارجاع‌دهنده: ' + n + ')' : '') + (byAdmin ? ADMIN_REF_SUFFIX : '');
+}
+function refTagLabel(byAdmin, name){ return (byAdmin ? 'ارجاع شده از سمت کارشناس' : 'ارجاع شده از شیفت قبل') + (name ? ' — ' + name : ''); }
 
 function activityRowHtml(rowIndex, a, availableNames, shiftKey){
   a = a || {desc:'',workOrder:'',workType:'',performedBy:[],timeFrom:'',timeTo:''};
@@ -1124,12 +1239,12 @@ function activityRowHtml(rowIndex, a, availableNames, shiftKey){
   const referred = !!a.referred;
   // Referred rows are locked for everyone except ادمین, who can either
   // edit the text directly or clear the row back to a normal blank one.
-  const adminOverride = referred && isAdmin;
+  const adminOverride = referred && canEditAll;
   const locked = referred && !adminOverride;
   const descValue = referred ? stripReferralSuffix(a.desc) : (a.desc||'');
   const byAdmin = referred && a.referredBy === 'admin';
-  const refTagText = byAdmin ? 'ارجاع شده از سمت کارشناس' : 'ارجاع شده از شیفت قبل';
-  return `<tr${referred ? ' class="act-row-referred" data-referred="1"' + (byAdmin ? ' data-referred-by="admin"' : '') : ''}>
+  const refTagText = refTagLabel(byAdmin, a.referrerName);
+  return `<tr${referred ? ' class="act-row-referred" data-referred="1"' + (byAdmin ? ' data-referred-by="admin"' : '') + (a.referrerName ? ' data-referrer="' + escapeAttr(a.referrerName) + '"' : '') : ''}>
       <td class="act-no">${rowIndex+1}</td>
       <td class="act-time">${timeDropdownHtml(rowIndex, a.timeFrom||'', a.timeTo||'', shiftKey)}</td>
       <td class="act-desc"><div class="act-desc-wrap">
@@ -1245,7 +1360,7 @@ function render(){
       // rows at the very top of the table.
       const pendingReferrals = referralsStore[referralKeyFor(isoDate(selectedDate), def.key)] || [];
       const referredActivities = pendingReferrals.map(text => ({
-        desc:stripReferralSuffix(text), workOrder:'', workType:'', performedBy:[], timeFrom:'', timeTo:'', referred:true, referredBy: isAdminReferral(text) ? 'admin' : ''
+        desc:stripReferralSuffix(text), workOrder:'', workType:'', performedBy:[], timeFrom:'', timeTo:'', referred:true, referredBy: isAdminReferral(text) ? 'admin' : '', referrerName: referrerOf(text)
       }));
       const baseActivities = prefill?.activities || [];
       const initialActivities = referredActivities.length ? referredActivities.concat(baseActivities) : baseActivities;
@@ -1322,8 +1437,9 @@ function render(){
           setBtnLoading(referBtn, false);
           if (!okLoad){ alert('اتصال برقرار نشد؛ ارجاع ثبت نشد. دوباره تلاش کنید.'); return; }
         }
-        const updated = (referralsStore[targetKey] || []).concat([isAdmin ? text + ADMIN_REF_SUFFIX : text]);
+        const updated = (referralsStore[targetKey] || []).concat([makeRefText(text, isAdmin ? (CUR && CUR.name) : ((document.getElementById(`sup-${def.key}`) || {}).value || (CUR && CUR.name)), isAdmin)]);
         referralsStore[targetKey] = updated;   // همان لحظه ثبت می‌شود؛ ارسال به سرور در پس‌زمینه
+        audit('ارجاع کار', target.dateStr + ' · ' + SHIFT_FA_LBL[target.shiftKey] + ' · ' + text);
         refInput.value = '';
         const tRef = queueSet(targetKey, updated);
         setBtnLoading(referBtn, true);
@@ -1576,6 +1692,7 @@ function render(){
             tr.classList.remove('act-row-referred');
             tr.removeAttribute('data-referred');
             tr.removeAttribute('data-referred-by');
+            tr.removeAttribute('data-referrer');
             descInput.readOnly = false;
             descInput.value = '';
             descInput.title = '';
@@ -1596,6 +1713,7 @@ function render(){
             commitPersonDropdown(personDd);
 
             clearBtn.remove();
+            audit('حذف ارجاع از گزارش', isoDate(selectedDate) + ' · ' + def.title + ' · ' + originalText);
 
             const ownReferralKey = referralKeyFor(isoDate(selectedDate), def.key);
             const pending = referralsStore[ownReferralKey] || [];
@@ -1679,10 +1797,11 @@ function render(){
             timeTo,
             referred,
             referredBy: referred ? ((activityTrs[i] && activityTrs[i].dataset.referredBy) || '') : '',
+            referrerName: referred ? ((activityTrs[i] && activityTrs[i].dataset.referrer) || '') : '',
           });
         }
         const hasAnyActivity = activities.some(a=>a.desc||a.workOrder||a.workType||a.performedBy.length||a.timeFrom||a.timeTo);
-        if (!isAdmin && !supervisor && attendeesNow.length===0 && !hasAnyActivity){
+        if (!canEditAll && !supervisor && attendeesNow.length===0 && !hasAnyActivity){
           alert('حداقل یکی از موارد مسئول شیفت، حاضرین یا فعالیت‌ها را پر کنید');
           return;
         }
@@ -1695,7 +1814,7 @@ function render(){
         // glance which item they didn't enter. ادمین از این محدودیت معاف
         // است و می‌تواند مثلاً فقط شرح فعالیت را بدون نوع کار/انجام‌دهنده ثبت کند.
         let hasInvalidRow = false;
-        if (!isAdmin){
+        if (!canEditAll){
           for (let i=0;i<activities.length;i++){
             const a = activities[i];
             const timePartial = (!!a.timeFrom) !== (!!a.timeTo);
@@ -1728,6 +1847,7 @@ function render(){
         const record = { supervisor, attendees: attendeesNow, activities, consumables, notes: notesVal, team:s.team, submittedAt:new Date().toISOString() };
         // ثبت فوری روی صفحه؛ ارسال به سرور در پس‌زمینه (با تلاش مجدد خودکار و نمایش وضعیت پایین صفحه)
         const reportKey = keyFor(isoDate(selectedDate), def.key);
+        audit(recordHasContent(reportsStore[reportKey]) ? 'ویرایش گزارش' : 'ثبت گزارش', isoDate(selectedDate) + ' · ' + def.title + ' · تیم ' + s.team);
         reportsStore[reportKey] = record;
         state[def.key].record = record;
         setBtnLoading(saveBtn, true);   // چرخش داخل خود دکمه تا رسیدن به سرور
@@ -1747,7 +1867,7 @@ function render(){
     function showSubmitted(record){
       const acts = (record.activities||[]).filter(a=>a.desc||a.workOrder||a.workType||(a.performedBy&&a.performedBy.length));
       const cons = (record.consumables||[]).filter(c=>c.name||c.unit||c.amount||c.location);
-      const canEdit = isEditableNow(isoDate(selectedDate), def.key) || isAdmin;
+      const dStrNow = isoDate(selectedDate), lockedNow = isLocked(dStrNow, def.key), canEdit = canEditReport(dStrNow, def.key);
       body.innerHTML = `
         <div class="submitted-view">
           <p class="submitted-meta">مسئول شیفت: ${record.supervisor || '-'}</p>
@@ -1761,7 +1881,7 @@ function render(){
                 const performedByStr = normalizePerformedBy(a).join('، ');
                 return `<li>
                   ${timeStr ? `<span class="submitted-act-time">${escapeAttr(timeStr)}</span>` : ''}
-                  <span class="submitted-act-desc">${escapeAttr(stripReferralSuffix(a.desc)||'-')}</span>${a.referredBy === 'admin' ? '<span class="act-referred-tag"> (ارجاع شده از سمت کارشناس)</span>' : ''}
+                  <span class="submitted-act-desc">${escapeAttr(stripReferralSuffix(a.desc)||'-')}</span>${(a.referredBy === 'admin' || (a.referred && a.referrerName)) ? '<span class="act-referred-tag"> (' + escapeAttr(refTagLabel(a.referredBy === 'admin', a.referrerName)) + ')</span>' : ''}
                   ${performedByStr ? `<span class="submitted-act-by"> — ${escapeAttr(performedByStr)}</span>` : ''}
                 </li>`;
               }).join('')}
@@ -1769,11 +1889,21 @@ function render(){
           </div>` : ''}
           ${cons.length ? `<p class="submitted-meta">اقلام مصرفی ثبت‌شده: ${cons.length}</p>` : ''}
           ${record.notes ? `<p class="submitted-meta">توضیحات: ${escapeAttr(record.notes)}</p>` : ''}
+          ${lockedNow ? `<p class="submitted-meta">🔒 این گزارش نهایی شده است${locksStore[lockKeyFor(dStrNow, def.key)].by ? ' (' + escapeAttr(locksStore[lockKeyFor(dStrNow, def.key)].by) + ')' : ''} و قابل ویرایش نیست.</p>` : ''}
           ${canEdit ? `<button class="link-edit" id="edit-${def.key}">ویرایش گزارش</button>` : ''}
+          ${isOwner ? `<button class="link-edit" id="lock-${def.key}" style="margin-inline-start:14px">${lockedNow ? 'بازکردن قفل گزارش' : 'نهایی‌کردن گزارش (قفل)'}</button>` : ''}
         </div>
       `;
       body.style.display = 'block';
       if (canEdit) document.getElementById(`edit-${def.key}`).onclick = () => showForm(record);
+      if (isOwner){
+        document.getElementById(`lock-${def.key}`).onclick = () => {
+          const lk = lockKeyFor(dStrNow, def.key), val = lockedNow ? { deleted: true, t: Date.now() } : { by: (CURUSER && CURUSER.name) || '', t: Date.now() };
+          locksStore[lk] = val; queueSet(lk, val);
+          audit(lockedNow ? 'بازکردن قفل گزارش' : 'نهایی‌کردن گزارش', dStrNow + ' · ' + def.title);
+          render(); renderCalendarList();
+        };
+      }
     }
 
     main.onclick = () => {
@@ -1784,9 +1914,11 @@ function render(){
         body.style.display = 'block';
         return;
       }
-      if (!isEditableNow(isoDate(selectedDate), def.key) && !isAdmin){
+      if (!canEditReport(isoDate(selectedDate), def.key)){
         const { start } = shiftWindowRange(isoDate(selectedDate), def.key);
-        const msg = new Date() < start
+        const msg = isLocked(isoDate(selectedDate), def.key) ? 'این گزارش نهایی شده است.'
+          : (isAdmin && !canEditAll) ? 'دسترسی شما به گزارش‌ها فقط نمایش است؛ برای این شیفت گزارشی ثبت نشده.'
+          : new Date() < start
           ? 'ثبت گزارش برای این شیفت هنوز شروع نشده است.'
           : 'مهلت ثبت گزارش برای این شیفت به پایان رسیده است.';
         body.innerHTML = `<div class="future-locked">${msg}</div>`;
@@ -1931,9 +2063,17 @@ function fillRotation(){
 }
 const EXPERT_CARDS = [   // کارشناس
   { id:'adm-excel',    title:'خروجی اکسل',           sub:'گزارش‌ها در یک بازه‌ی تاریخ' },
-  { id:'adm-referral', title:'ارجاع کار به شیفت',     sub:'ثبت کار برای هر شیفت دلخواه', onOpen: () => { if (window.renderAdminReferral) window.renderAdminReferral(); } },
+  { id:'adm-referral', title:'ارجاع کار به شیفت',     sub:'یک یا چند شیفت، یک‌بار یا تکرارشونده', onOpen: () => { if (window.renderAdminReferral) window.renderAdminReferral(); } },
+  { id:'adm-view',      title:'مشاهده‌ی گزارش‌ها',    sub:'فقط نمایش، همه‌ی جزئیات یک روز', onOpen: () => { if (window.renderViewReports) window.renderViewReports(); } },
+  { id:'adm-refstatus', title:'وضعیت ارجاع‌های من',   sub:'در انتظار / ثبت‌شده / انجام‌شده', onOpen: () => { if (window.renderRefStatus) window.renderRefStatus(); } },
 ];
 const OWNER_CARDS = EXPERT_CARDS.concat([   // ادمین (دسترسی کامل)
+  { id:'adm-unsub',    title:'گزارش‌های ثبت‌نشده',     sub:'با دکمه‌ی یادآوری به مسئول شیفت', onOpen: () => { if (window.renderUnsub) window.renderUnsub(); } },
+  { id:'adm-refmgr',   title:'مدیریت ارجاع‌ها',        sub:'ویرایش و حذف ارجاع‌های در انتظار', onOpen: () => { if (window.renderRefManager) window.renderRefManager(); } },
+  { id:'adm-audit',    title:'سابقه‌ی تغییرات',        sub:'چه کسی، کی، چه کاری کرد', onOpen: () => { if (window.renderAudit) window.renderAudit(); } },
+  { id:'adm-settings', title:'تنظیم بازه‌ی شیفت‌ها',    sub:'ساعت شروع و پایان ثبت گزارش', onOpen: () => { if (window.renderSettings) window.renderSettings(); } },
+  { id:'adm-devices',  title:'گوشی‌های دارای اعلان',   sub:'مشاهده و حذف', onOpen: () => { if (window.renderDevices) window.renderDevices(); } },
+  { id:'adm-backup',   title:'پشتیبان‌گیری',           sub:'دریافت و بازگردانی', onOpen: () => { if (window.renderBackup) window.renderBackup(); } },
   { id:'adm-rotation', title:'ترتیب چرخش تیم‌ها',     sub:'تاریخ مرجع و ترتیب تیم‌ها', onOpen: fillRotation },
   { id:'adm-users',    title:'حساب‌های کاربری',       sub:'نام، نام کاربری، تیم، نقش و رمز', onOpen: () => { if (window.renderUsersAdmin) window.renderUsersAdmin(); } },
   { id:'adm-sup',      title:'فهرست مسئولین شیفت',   sub:'', onOpen: () => renderPeopleAdmin() },
@@ -1976,6 +2116,7 @@ function renderPeopleAdmin(){
     : '<p class="people-empty">فهرست خالی است</p>';
   supWrap.querySelectorAll('.people-del').forEach(btn => {
     btn.onclick = async () => {
+      audit('حذف از فهرست مسئولین', SUPERVISORS[+btn.dataset.idx]);
       SUPERVISORS.splice(+btn.dataset.idx, 1);
       await safeSet('supervisors-list', SUPERVISORS);
       renderPeopleAdmin();
@@ -1983,6 +2124,7 @@ function renderPeopleAdmin(){
   });
   staffWrap.querySelectorAll('.people-del').forEach(btn => {
     btn.onclick = async () => {
+      audit('حذف از فهرست پرسنل', STAFF[+btn.dataset.idx]);
       STAFF.splice(+btn.dataset.idx, 1);
       await safeSet('staff-list', STAFF);
       renderPeopleAdmin();
@@ -1993,7 +2135,7 @@ document.getElementById('addSupBtn').onclick = async () => {
   const input = document.getElementById('newSupInput');
   const val = input.value.trim();
   if (!val) return;
-  if (!SUPERVISORS.includes(val)) SUPERVISORS.push(val);
+  if (!SUPERVISORS.includes(val)){ SUPERVISORS.push(val); audit('افزودن به فهرست مسئولین', val); }
   await safeSet('supervisors-list', SUPERVISORS);
   input.value = '';
   renderPeopleAdmin();
@@ -2002,7 +2144,7 @@ document.getElementById('addStaffBtn').onclick = async () => {
   const input = document.getElementById('newStaffInput');
   const val = input.value.trim();
   if (!val) return;
-  if (!STAFF.includes(val)) STAFF.push(val);
+  if (!STAFF.includes(val)){ STAFF.push(val); audit('افزودن به فهرست پرسنل', val); }
   await safeSet('staff-list', STAFF);
   input.value = '';
   renderPeopleAdmin();
@@ -2016,6 +2158,7 @@ document.getElementById('saveRotationBtn').onclick = async () => {
                  document.getElementById('pos2').value, document.getElementById('pos3').value];
   CONFIG = { refDate, order };
   const ok = await safeSet('shift-config', CONFIG);
+  audit('تغییر ترتیب چرخش تیم‌ها', refDate + ' · ' + order.join(''));
   await loadState();
   alert(ok ? 'چرخش تیم‌ها ذخیره شد' : 'ذخیره ناموفق بود');
 };
@@ -2034,6 +2177,10 @@ document.getElementById('exportBtn').onclick = async () => {
   const consRows = [];
   const shiftLabel = {day:'صبح‌کار', evening:'عصرکار', night:'شب‌کار'};
 
+  const fTeam = document.getElementById('xfTeam').value, fShift = document.getElementById('xfShift').value;
+  const fType = document.getElementById('xfType').value, fMine = !!document.getElementById('xfMine').value;
+  const myName = (CURUSER && CURUSER.name) || '';
+  const actFilter = !!(fType || fMine);   // با فیلتر نوع کار یا «ارجاع‌های من»، فقط ردیف‌های فعالیتِ منطبق می‌آیند
   await loadReportsStore(); // make sure the export reflects the latest sheet data
   let cursor = new Date(from);
   while (cursor <= to){
@@ -2045,22 +2192,26 @@ document.getElementById('exportBtn').onclick = async () => {
     for (const key of ['day','evening','night']){
       const record = reportsStore[keyFor(dStr, key)] || null;
       const team = teams[key];
+      if ((fTeam && team !== fTeam) || (fShift && key !== fShift)) continue;
       if (!recordHasContent(record)){
+        if (actFilter) continue;
         rows.push([dStr, jalaliStr, shiftLabel[key], team, '', '', 'بدون گزارش', '', '', '', '', '', '']);
         continue;
       }
-      (record.consumables||[]).filter(c=>c.name||c.unit||c.amount||c.location).forEach((c, ci) => {
+      (actFilter ? [] : (record.consumables||[])).filter(c=>c.name||c.unit||c.amount||c.location).forEach((c, ci) => {
         consRows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', ci+1, c.name||'', c.unit||'', c.amount||'', c.location||'']);
       });
-      const acts = (record.activities||[]).filter(a=>a.desc||a.workOrder||a.workType||(a.performedBy&&a.performedBy.length));
+      const acts = (record.activities||[]).filter(a=>a.desc||a.workOrder||a.workType||(a.performedBy&&a.performedBy.length))
+        .filter(a => (!fType || a.workType === fType) && (!fMine || (a.referred && a.referrerName === myName)));
       const attendeesStr = (record.attendees||[]).join('، ');
       if (acts.length===0){
+        if (actFilter) continue;
         rows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', attendeesStr, 'ثبت شده (بدون فعالیت)', '', '', '', '', '', '']);
       } else {
         acts.forEach((a, idx) => {
           const performedByStr = normalizePerformedBy(a).join('، ');
           const timeStr = (a.timeFrom && a.timeTo) ? `${a.timeFrom} - ${a.timeTo}` : '';
-          rows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', attendeesStr, 'ثبت شده', idx+1, timeStr, (a.desc||'') + (a.referredBy === 'admin' ? ' (ارجاع شده از سمت کارشناس)' : ''), a.workOrder||'', a.workType||'', performedByStr]);
+          rows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', attendeesStr, 'ثبت شده', idx+1, timeStr, (a.desc||'') + ((a.referredBy === 'admin' || (a.referred && a.referrerName)) ? ' (' + refTagLabel(a.referredBy === 'admin', a.referrerName) + ')' : ''), a.workOrder||'', a.workType||'', performedByStr]);
         });
       }
     }
@@ -2077,6 +2228,7 @@ document.getElementById('exportBtn').onclick = async () => {
   const ws2 = XLSX.utils.aoa_to_sheet([consHeader, ...consRows]);
   ws2['!cols'] = [{wch:12},{wch:12},{wch:10},{wch:6},{wch:16},{wch:6},{wch:28},{wch:10},{wch:10},{wch:18}];
   XLSX.utils.book_append_sheet(wb, ws2, 'اقلام مصرفی');
+  audit('خروجی اکسل', fromVal + ' تا ' + toVal);
   XLSX.writeFile(wb, `گزارش_شیفت_${fromVal}_تا_${toVal}.xlsx`);
 };
 
@@ -2245,6 +2397,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   const esc = t => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const teamsList = () => [...new Set((typeof CONFIG !== 'undefined' && CONFIG && CONFIG.order) || ['A','B','C','D'])].sort();
   let CUR = null;
+  window.authApi = { fetchUsers: () => fetchUsers(), mutateUsers: fn => mutateUsers(fn) };
 
   async function sha(str){
     try{
@@ -2308,13 +2461,13 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   function hideGate(){ gate.style.display = 'none'; }
 
   function applyUser(u){
-    CUR = u; isAdmin = (u.role === 'admin' || u.role === 'owner'); isOwner = (u.role === 'owner');
+    CUR = u; CURUSER = u; isAdmin = (u.role === 'admin' || u.role === 'owner'); isOwner = (u.role === 'owner'); canEditAll = isOwner || (u.role === 'admin' && u.perm === 'edit');
     try{ mountAdminRows(); }catch(e){}   // کارت‌های مدیریت (بعد از سه شیفت) فقط برای ادمین
     addUserBtn();
   }
   async function logout(t){
     try{ store.removeItem(SKEY); localStorage.removeItem(SKEY); sessionStorage.removeItem(SKEY); }catch(e){}
-    CUR = null; isAdmin = false; isOwner = false;
+    CUR = null; CURUSER = null; isAdmin = false; isOwner = false; canEditAll = false;
     try{ mountAdminRows(); }catch(e){}
     uI.value = ''; showGate(t);
     try{ if (window.pushApi && window.pushApi.getReg()) await Promise.race([window.pushApi.unregister(), new Promise(r => setTimeout(r, 4000))]); }catch(e){}   // این گوشی دیگر اعلان نگیرد
@@ -2515,19 +2668,38 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       daySel.onchange = fillShifts;
     }
     fillShifts();
+    const rep_ = $('arRepeat'), cnt_ = $('arCount');
+    rep_.onchange = () => { cnt_.style.display = rep_.value === 'none' ? 'none' : 'block'; };
+    rep_.onchange();
     btn.onclick = async () => {
       const text = txt.value.trim();
       if (!text){ say2('شرح کار را بنویسید.'); return; }
-      const dateStr = daySel.value, shiftKey = shSel.value, key = referralKeyFor(dateStr, shiftKey);
+      const dateStr = daySel.value, scope = $('arScope').value, mode = rep_.value;
+      const n = mode === 'none' ? 1 : Math.max(2, Math.min(14, parseInt(cnt_.value, 10) || 2));
+      const shifts = scope === 'all' ? SHIFT_DEFS.map(d => d.key) : [shSel.value];
+      const targets = [];
+      for (let i = 0; i < n; i++){
+        const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + (mode === 'weekly' ? 7 * i : i));
+        shifts.forEach(sk => targets.push({ d: isoDate(d), sk }));
+      }
+      if (targets.length > 21){ say2('حداکثر ۲۱ ارجاع در هر بار مجاز است؛ تعداد را کم کنید.'); return; }
+      if (targets.length > 3 && !confirm(targets.length + ' ارجاع ثبت می‌شود و برای هر کدام اعلان جداگانه می‌رود. ادامه می‌دهید؟')) return;
       btn.disabled = true; say2('در حال ثبت…', true);
       try{
-        const okLoad = await loadMonths([ymOf(new Date(dateStr + 'T00:00:00'))]);   // ارجاع‌های قبلی همان شیفت پاک نشوند (اگر ماه قبلاً خوانده شده باشد فوری است)
+        const months = [...new Set(targets.map(t => ymOf(new Date(t.d + 'T00:00:00'))))];
+        const okLoad = await loadMonths(months);   // ارجاع‌های قبلی همان شیفت پاک نشوند
         if (!okLoad){ say2('اتصال برقرار نشد؛ دوباره تلاش کنید.'); return; }
-        const updated = (referralsStore[key] || []).concat([text + ADMIN_REF_SUFFIX]);
-        referralsStore[key] = updated; txt.value = '';
-        queueSet(key, updated);   // ارسال به سرور در پس‌زمینه
-        const team = computeTeams(new Date(dateStr + 'T00:00:00'), new Date(CONFIG.refDate + 'T00:00:00'), CONFIG.order)[shiftKey], o = ownerOf(team);
-        say2('ارجاع ثبت شد. اعلان برای ' + (o ? o + ' (' + 'مسئول شیفت ' + team + ')' : 'مسئول شیفت ' + team) + ' حداکثر تا یک دقیقه‌ی دیگر ارسال می‌شود.', true);
+        targets.forEach(t => {
+          const key = referralKeyFor(t.d, t.sk);
+          const updated = (referralsStore[key] || []).concat([makeRefText(text, CUR && CUR.name, true)]);
+          referralsStore[key] = updated; queueSet(key, updated);   // ارسال به سرور در پس‌زمینه
+        });
+        txt.value = '';
+        audit('ارجاع کار', targets.length + ' مورد · از ' + dateStr + ' · ' + text);
+        if (targets.length === 1){
+          const team = computeTeams(new Date(dateStr + 'T00:00:00'), new Date(CONFIG.refDate + 'T00:00:00'), CONFIG.order)[shifts[0]], o = ownerOf(team);
+          say2('ارجاع ثبت شد. اعلان برای ' + (o ? o + ' (' + 'مسئول شیفت ' + team + ')' : 'مسئول شیفت ' + team) + ' حداکثر تا یک دقیقه‌ی دیگر ارسال می‌شود.', true);
+        } else say2(targets.length + ' ارجاع ثبت شد؛ اعلان‌ها حداکثر تا چند دقیقه‌ی دیگر ارسال می‌شوند.', true);
         try{ refreshAllSilently(); }catch(e){}
       }finally{ btn.disabled = false; }
     };
@@ -2545,14 +2717,15 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     const fields = u => '<p class="u-lbl">نام</p><input class="u-name" value="' + esc(u.name) + '" placeholder="نام و نام خانوادگی">' +
       '<p class="u-lbl">نام کاربری</p><input class="u-id" inputmode="numeric" value="' + esc(u.id) + '" placeholder="نام کاربری"' + (CUR && u.id === CUR.id ? ' disabled' : '') + '>' +
       '<p class="u-lbl">تیم</p><select class="u-team">' + teamOpts(u.team || '') + '</select>' +
-      '<p class="u-lbl">نقش</p><select class="u-role"' + (CUR && u.id === CUR.id ? ' disabled' : '') + '>' + roleOpts(u.role) + '</select>';
+      '<p class="u-lbl">نقش</p><select class="u-role"' + (CUR && u.id === CUR.id ? ' disabled' : '') + '>' + roleOpts(u.role) + '</select>' +
+      '<p class="u-lbl">دسترسی کارشناس به گزارش‌ها (فقط برای نقش کارشناس)</p><select class="u-perm">' + opt('view', 'فقط نمایش', u.perm !== 'edit') + opt('edit', 'مشاهده، ویرایش و ثبت گزارش', u.perm === 'edit') + '</select>';
     wrap.innerHTML = list.map(u => '<div class="u-card" data-id="' + esc(u.id) + '">' + fields(u) +
       '<div class="u-btns"><button class="btn btn-save u-save" type="button">ذخیره</button><button class="btn btn-cancel u-reset" type="button">بازنشانی رمز</button>' +
       (CUR && u.id === CUR.id ? '' : '<button class="btn btn-cancel u-del" type="button" style="color:var(--red)">حذف</button>') + '</div></div>').join('') +
       '<div class="u-card" id="uAddCard"><p class="u-lbl" style="font-weight:700">افزودن کاربر جدید</p>' + fields({ id:'', name:'', team:'', role:'supervisor' }) +
       '<div class="u-btns"><button class="btn btn-save" id="uAddBtn" type="button">افزودن (رمز پیش‌فرض ۱۲۳۴)</button></div></div>';
 
-    const read = card => ({ name: card.querySelector('.u-name').value.trim(), id: fa2en(card.querySelector('.u-id').value), team: card.querySelector('.u-team').value, role: card.querySelector('.u-role').value });
+    const read = card => ({ name: card.querySelector('.u-name').value.trim(), id: fa2en(card.querySelector('.u-id').value), team: card.querySelector('.u-team').value, role: card.querySelector('.u-role').value, perm: card.querySelector('.u-perm').value });
     const syncSup = async (oldName, f) => {   // فهرست مسئولین شیفت (برای فرم گزارش) با نام حساب هماهنگ بماند
       if (f.role !== 'supervisor') return;
       const i = oldName ? SUPERVISORS.indexOf(oldName) : -1;
@@ -2580,12 +2753,13 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
         if (!ok) return;
         if (f.id !== oldId){ await resetPass(oldId); await resetPass(f.id); }
         await syncSup(oldName, f);
+        audit('ویرایش حساب', f.name + ' (' + f.id + ') · نقش ' + f.role + (f.role === 'admin' ? ' · دسترسی ' + f.perm : ''));
         if (self){ CUR.name = f.name; CUR.team = f.team; }
         await done('ذخیره شد.' + (f.id !== oldId ? ' رمز این کاربر به ۱۲۳۴ برگشت.' : ''));
       };
       card.querySelector('.u-reset').onclick = async () => {
         if (!confirm('رمز این کاربر به رمز پیش‌فرض (۱۲۳۴) برگردد؟')) return;
-        const ok = await resetPass(oldId); alert(ok ? 'رمز به ۱۲۳۴ برگشت.' : 'ذخیره ناموفق بود؛ اینترنت را بررسی کنید.');
+        const ok = await resetPass(oldId); audit('بازنشانی رمز', oldId); alert(ok ? 'رمز به ۱۲۳۴ برگشت.' : 'ذخیره ناموفق بود؛ اینترنت را بررسی کنید.');
       };
       const del = card.querySelector('.u-del');
       if (del) del.onclick = async () => {
@@ -2594,7 +2768,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
           const i = l.findIndex(x => x.id === oldId); if (i < 0) return 'کاربر پیدا نشد.';
           l.splice(i, 1); if (!l.some(x => x.role === 'owner')) return 'حداقل یک ادمین باید وجود داشته باشد.'; return null;
         });
-        if (!ok) return; await resetPass(oldId); await done('حذف شد.');
+        if (!ok) return; await resetPass(oldId); audit('حذف حساب', oldId); await done('حذف شد.');
       };
     });
     $('uAddBtn').onclick = async () => {
@@ -2602,7 +2776,7 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
       if (!f.name || !f.id){ alert('نام و نام کاربری را وارد کنید.'); return; }
       if (/\s/.test(f.id)){ alert('نام کاربری نباید فاصله داشته باشد.'); return; }
       const ok = await mutateUsers(l => { if (l.some(x => x.id === f.id)) return 'این نام کاربری قبلاً استفاده شده است.'; l.push(f); return null; });
-      if (!ok) return; await resetPass(f.id); await syncSup('', f); await done('کاربر اضافه شد.');
+      if (!ok) return; await resetPass(f.id); await syncSup('', f); audit('افزودن حساب', f.name + ' (' + f.id + ') · نقش ' + f.role); await done('کاربر اضافه شد.');
     };
   };
 
@@ -2624,6 +2798,227 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   } else {
     showGate();
   }
+})();
+</script>
+
+<script>
+/* ---------- بخش‌های تازه‌ی پنل کارشناس/ادمین ---------- */
+(function(){
+  const qs = id => document.getElementById(id);
+  const escH = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+  const SH = { day:'صبح‌کار', evening:'عصرکار', night:'شب‌کار' };
+  const KEYS = ['day', 'evening', 'night'];
+  const nfa = n => Number(n).toLocaleString('fa-IR', { useGrouping:false });
+  const jal = dStr => { const d = new Date(dStr + 'T00:00:00'), j = gregorianToJalali(d.getFullYear(), d.getMonth() + 1, d.getDate()); return d.toLocaleDateString('fa-IR', { weekday:'long' }) + ' ' + nfa(j[2]) + ' ' + PERSIAN_MONTHS[j[1] - 1] + ' ' + nfa(j[0]); };
+  const addDays = (dStr, n) => { const d = new Date(dStr + 'T00:00:00'); d.setDate(d.getDate() + n); return isoDate(d); };
+  const teamOf = (dStr, k) => computeTeams(new Date(dStr + 'T00:00:00'), new Date(CONFIG.refDate + 'T00:00:00'), CONFIG.order)[k];
+  const monthsAround = () => [...new Set([-1, 0, 1].map(o => ymOf(new Date(today.getFullYear(), today.getMonth() + o, 1))))];
+  const isStaffU = u => !!u && (u.role === 'admin' || u.role === 'owner');
+  const roleFa = r => r === 'owner' ? 'ادمین' : r === 'admin' ? 'کارشناس' : 'سرشیفت';
+  const loading = el => { el.innerHTML = '<p class="people-empty">در حال دریافت…</p>'; };
+  async function usersList(){ try{ return await window.authApi.fetchUsers(); }catch(e){ return []; } }
+  const myName = () => (CURUSER && CURUSER.name) || '';
+  const tagFor = a => (a.referredBy === 'admin' || (a.referred && a.referrerName)) ? ' <span class="act-referred-tag">(' + escH(refTagLabel(a.referredBy === 'admin', a.referrerName)) + ')</span>' : '';
+  const style = document.createElement('style');
+  style.textContent = '.xc-item{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--panel-2);font-size:13px;line-height:1.9}.xc-item .xc-sub{color:var(--muted);font-size:12px}.xc-btns{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}.xc-btns button{font-family:inherit;font-size:12px;padding:5px 12px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer}.xc-pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;background:#eee;margin-inline-start:6px}.xc-pill.ok{background:#dcf2e1;color:#1d6b32}.xc-pill.wait{background:#fdf0d6;color:#8a5a00}';
+  document.head.appendChild(style);
+
+  /* ---- مشاهده‌ی گزارش‌ها (فقط نمایش) ---- */
+  window.renderViewReports = async function(){
+    const inp = qs('vwDate'), out = qs('vwOut');
+    if (!inp.value) inp.value = isoDate(today);
+    const show = async () => {
+      const d = inp.value; if (!d) return;
+      loading(out);
+      await loadMonths([ymOf(new Date(d + 'T00:00:00'))], true);
+      out.innerHTML = '<p class="u-lbl">' + escH(jal(d)) + '</p>' + KEYS.map(k => {
+        const rec = reportsStore[keyFor(d, k)], lk = locksStore[lockKeyFor(d, k)], locked = lk && !lk.deleted;
+        let b;
+        if (!recordHasContent(rec)) b = '<p class="people-empty">گزارشی ثبت نشده است.</p>';
+        else {
+          const acts = (rec.activities || []).filter(a => a.desc || a.workOrder || a.workType || (a.performedBy && a.performedBy.length));
+          const cons = (rec.consumables || []).filter(c => c.name || c.unit || c.amount || c.location);
+          b = '<div>مسئول شیفت: ' + escH(rec.supervisor || '-') + '</div><div>حاضرین: ' + escH((rec.attendees || []).join('، ') || '-') + '</div>' +
+            (acts.length ? '<div style="margin-top:6px">فعالیت‌ها:</div>' + acts.map(a => '<div class="xc-sub" style="color:inherit">• ' + (a.timeFrom && a.timeTo ? escH(a.timeFrom + ' - ' + a.timeTo) + ' — ' : '') + escH(stripReferralSuffix(a.desc) || '-') + tagFor(a) +
+              (a.workType ? ' · ' + escH(a.workType) : '') + (a.workOrder ? ' · دستور کار ' + escH(a.workOrder) : '') + (normalizePerformedBy(a).length ? ' · ' + escH(normalizePerformedBy(a).join('، ')) : '') + '</div>').join('') : '') +
+            (cons.length ? '<div style="margin-top:6px">اقلام مصرفی:</div>' + cons.map(c => '<div class="xc-sub" style="color:inherit">• ' + escH(c.name || '-') + ' — ' + escH(c.amount || '') + ' ' + escH(c.unit || '') + (c.location ? ' · ' + escH(c.location) : '') + '</div>').join('') : '') +
+            (rec.notes ? '<div style="margin-top:6px">توضیحات: ' + escH(rec.notes) + '</div>' : '');
+        }
+        return '<div class="xc-item"><b>' + SH[k] + '</b> — تیم ' + escH(teamOf(d, k)) + (locked ? '<span class="xc-pill ok">🔒 نهایی' + (lk.by ? ' · ' + escH(lk.by) : '') + '</span>' : '') + '<div>' + b + '</div></div>';
+      }).join('');
+    };
+    inp.onchange = show; qs('vwBtn').onclick = show; show();
+  };
+
+  /* ---- وضعیت ارجاع‌هایی که خودم داده‌ام ---- */
+  window.renderRefStatus = async function(){
+    const out = qs('rsOut'); loading(out);
+    await loadMonths(monthsAround(), true);
+    const me = myName(), items = [], todayS = isoDate(today), from = addDays(todayS, -30);
+    Object.keys(referralsStore).forEach(k => { const p = k.split(':'); if (p[1] < from) return; (referralsStore[k] || []).forEach(t => { if (referrerOf(t) === me) items.push({ d: p[1], sk: p[2], desc: stripReferralSuffix(t), st: 'wait' }); }); });
+    Object.keys(reportsStore).forEach(k => { const rec = reportsStore[k], p = k.split(':'); if (!rec || p[1] < from) return;
+      (rec.activities || []).forEach(a => { if (a.referred && a.referrerName === me) items.push({ d: p[1], sk: p[2], desc: stripReferralSuffix(a.desc), st: (a.workType && (a.performedBy || []).length) ? 'ok' : 'in', a: a }); }); });
+    items.sort((x, y) => y.d.localeCompare(x.d));
+    const lab = { wait:'در انتظار شیفت مقصد', in:'وارد گزارش شد', ok:'انجام شد' };
+    out.innerHTML = items.length ? items.map(it => '<div class="xc-item"><div>' + escH(it.desc) + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + ' · تیم ' + escH(teamOf(it.d, it.sk)) +
+      '<span class="xc-pill ' + (it.st === 'ok' ? 'ok' : 'wait') + '">' + lab[it.st] + '</span>' + (it.a && it.a.performedBy && it.a.performedBy.length ? ' · ' + escH(normalizePerformedBy(it.a).join('، ')) : '') + '</div></div>').join('')
+      : '<p class="people-empty">در ۳۰ روز اخیر ارجاعی به نام شما ثبت نشده است. (ارجاع‌های قبل از به‌روزرسانی اسم ارجاع‌دهنده ندارند.)</p>';
+  };
+
+  /* ---- مدیریت ارجاع‌ها (ادمین) ---- */
+  window.renderRefManager = async function(){
+    const out = qs('rmOut'); loading(out);
+    await loadMonths(monthsAround(), true);
+    const todayS = isoDate(today), from = addDays(todayS, -1), pend = [];
+    Object.keys(referralsStore).sort().forEach(k => { const p = k.split(':'); if (p[1] < from) return; (referralsStore[k] || []).forEach((t, i) => pend.push({ k: k, i: i, d: p[1], sk: p[2], t: t })); });
+    const done = [], from14 = addDays(todayS, -14);
+    Object.keys(reportsStore).forEach(k => { const rec = reportsStore[k], p = k.split(':'); if (!rec || p[1] < from14) return; (rec.activities || []).forEach(a => { if (a.referred) done.push({ d: p[1], sk: p[2], a: a }); }); });
+    done.sort((x, y) => y.d.localeCompare(x.d));
+    out.innerHTML = '<p class="u-lbl" style="font-weight:700">در انتظار (' + nfa(pend.length) + ')</p>' + (pend.length ? pend.map(it => '<div class="xc-item"><div>' + escH(stripReferralSuffix(it.t)) + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + ' · تیم ' + escH(teamOf(it.d, it.sk)) +
+        (referrerOf(it.t) ? ' · از ' + escH(referrerOf(it.t)) : '') + (isAdminReferral(it.t) ? ' · سمت کارشناس' : '') + '</div><div class="xc-btns"><button data-act="ed" data-k="' + escH(it.k) + '" data-i="' + it.i + '">ویرایش</button><button data-act="rm" data-k="' + escH(it.k) + '" data-i="' + it.i + '" style="color:var(--red)">حذف</button></div></div>').join('') : '<p class="people-empty">ارجاع در انتظاری وجود ندارد.</p>') +
+      '<p class="u-lbl" style="font-weight:700;margin-top:14px">وارد گزارش‌شده (۱۴ روز اخیر: ' + nfa(done.length) + ')</p>' + (done.length ? done.map(it => '<div class="xc-item"><div>' + escH(stripReferralSuffix(it.a.desc) || '-') + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + tagFor(it.a) +
+        '<span class="xc-pill ' + ((it.a.workType && (it.a.performedBy || []).length) ? 'ok' : 'wait') + '">' + ((it.a.workType && (it.a.performedBy || []).length) ? 'انجام شد' : 'هنوز تکمیل نشده') + '</span></div></div>').join('') : '<p class="people-empty">موردی نیست.</p>');
+    out.querySelectorAll('button[data-act]').forEach(b => {
+      b.onclick = async () => {
+        const k = b.dataset.k, i = +b.dataset.i, arr = (referralsStore[k] || []).slice(), old = arr[i]; if (old === undefined) return;
+        if (b.dataset.act === 'rm'){
+          if (!confirm('این ارجاع حذف شود؟')) return;
+          arr.splice(i, 1); audit('حذف ارجاع در انتظار', k.split(':')[1] + ' · ' + stripReferralSuffix(old));
+        } else {
+          const nv = prompt('متن ارجاع:', stripReferralSuffix(old)); if (nv === null || !nv.trim()) return;
+          arr[i] = makeRefText(nv.trim(), referrerOf(old), isAdminReferral(old)); audit('ویرایش ارجاع در انتظار', k.split(':')[1] + ' · ' + stripReferralSuffix(old) + ' ← ' + nv.trim());
+        }
+        referralsStore[k] = arr; queueSet(k, arr);
+        window.renderRefManager(); try{ refreshAllSilently(); }catch(e){}
+      };
+    });
+  };
+
+  /* ---- گزارش‌های ثبت‌نشده + یادآوری (ادمین) ---- */
+  window.renderUnsub = async function(){
+    const out = qs('unOut'); loading(out);
+    await loadMonths(monthsAround(), true);
+    const us = await usersList(), ownerOf = t => { const u = us.find(x => !isStaffU(x) && x.team === t); return u ? u.name : ''; };
+    const now = new Date(), list = [];
+    for (let i = 0; i <= 7; i++){
+      const d = addDays(isoDate(today), -i);
+      KEYS.slice().reverse().forEach(k => { if (shiftWindowRange(d, k).end > now) return; if (!recordHasContent(reportsStore[keyFor(d, k)])) list.push({ d: d, k: k, team: teamOf(d, k), owner: ownerOf(teamOf(d, k)) }); });
+    }
+    if (!list.length){ out.innerHTML = '<p class="people-empty">همه‌ی گزارش‌های ۸ روز اخیر ثبت شده است. ✓</p>'; return; }
+    const send = (it, btn) => {
+      const key = 'nudge:' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+      queueRaw(key, { team: it.team, title: 'یادآوری ثبت گزارش — ' + SH[it.k], body: 'گزارش ' + SH[it.k] + ' ' + jal(it.d) + ' هنوز ثبت نشده است.', by: myName(), t: Date.now(), sent: false });
+      audit('یادآوری گزارش ثبت‌نشده', it.d + ' · ' + SH[it.k] + ' · تیم ' + it.team);
+      if (btn){ btn.textContent = 'ارسال شد ✓'; btn.disabled = true; }
+    };
+    out.innerHTML = '<div class="btn-row" style="margin-bottom:10px"><button class="btn btn-save" id="unAll" type="button">یادآوری به همه (' + nfa(list.length) + ')</button></div>' + list.map((it, i) => '<div class="xc-item"><b>' + SH[it.k] + '</b> — ' + escH(jal(it.d)) + '<div class="xc-sub">تیم ' + escH(it.team) + (it.owner ? ' · ' + escH(it.owner) : '') + '</div><div class="xc-btns"><button data-i="' + i + '">یادآوری</button></div></div>').join('');
+    out.querySelectorAll('button[data-i]').forEach(b => { b.onclick = () => send(list[+b.dataset.i], b); });
+    qs('unAll').onclick = () => { if (!confirm('برای ' + list.length + ' شیفت یادآوری ارسال شود؟')) return; out.querySelectorAll('button[data-i]').forEach(b => { if (!b.disabled) send(list[+b.dataset.i], b); }); };
+  };
+
+  /* ---- سابقه‌ی تغییرات (ادمین) ---- */
+  let auRows = [];
+  async function auLoad(){
+    const out = qs('auOut'); loading(out);
+    const ym = qs('auMonth').value, res = await safeGetPrefix('audit:' + ym);
+    if (!res){ out.innerHTML = '<p class="people-empty">اتصال برقرار نشد.</p>'; return; }
+    auRows = Object.keys(res).map(k => res[k]).filter(Boolean).sort((a, b) => (b.t || 0) - (a.t || 0));
+    auPaint();
+  }
+  function auPaint(){
+    const out = qs('auOut'), q = qs('auSearch').value.trim();
+    const rows = auRows.filter(r => !q || (r.by + ' ' + r.action + ' ' + r.detail + ' ' + roleFa(r.role)).indexOf(q) > -1).slice(0, 300);
+    out.innerHTML = rows.length ? rows.map(r => { const d = new Date(r.t || 0);
+      return '<div class="xc-item"><b>' + escH(r.action) + '</b><div class="xc-sub">' + escH(r.by || '-') + ' (' + roleFa(r.role) + ') · ' + escH(d.toLocaleDateString('fa-IR') + ' ' + d.toLocaleTimeString('fa-IR', { hour:'2-digit', minute:'2-digit' })) + '</div>' + (r.detail ? '<div>' + escH(r.detail) + '</div>' : '') + '</div>'; }).join('')
+      : '<p class="people-empty">موردی پیدا نشد.</p>';
+  }
+  window.renderAudit = function(){
+    const sel = qs('auMonth');
+    if (!sel.options.length){
+      [0, -1, -2].forEach(o => { const d = new Date(today.getFullYear(), today.getMonth() + o, 1), j = gregorianToJalali(d.getFullYear(), d.getMonth() + 1, 15); sel.add(new Option(PERSIAN_MONTHS[j[1] - 1] + ' ' + nfa(j[0]), ymOf(d))); });
+      sel.onchange = auLoad; qs('auSearch').oninput = auPaint;
+    }
+    auLoad();
+  };
+
+  /* ---- تنظیم بازه‌ی شیفت‌ها (ادمین) ---- */
+  const DEF_WIN = { day:[7, 16], evening:[15, 24], night:[23, 8] };
+  window.renderSettings = function(){
+    qs('stBody').innerHTML = KEYS.map(k => '<div class="u-card"><p class="u-lbl" style="font-weight:700">' + SH[k] + '</p><div class="date-range-row"><div><p class="u-lbl">شروع</p><input type="number" min="0" max="23" id="stS-' + k + '" value="' + SHIFT_WINDOW[k].startHour + '"></div><div><p class="u-lbl">پایان</p><input type="number" min="1" max="24" id="stE-' + k + '" value="' + SHIFT_WINDOW[k].endHour + '"></div></div></div>').join('');
+    const msg = (t, ok) => { const m = qs('stMsg'); m.textContent = t || ''; m.className = 'auth-msg' + (ok ? ' ok' : ''); };
+    msg('');
+    const save = async win => {
+      const st = { windows: win };
+      const ok = await safeSet('shift-settings', st);
+      if (ok){ applyShiftSettings(st); audit('تغییر بازه‌ی شیفت‌ها', KEYS.map(k => SH[k] + ' ' + win[k].startHour + '–' + win[k].endHour).join(' · ')); try{ refreshAllSilently(); }catch(e){} window.renderSettings(); msg('ذخیره شد.', true); } else msg('ذخیره ناموفق بود؛ اینترنت را بررسی کنید.');
+    };
+    qs('stSave').onclick = () => {
+      const win = {};
+      for (const k of KEYS){
+        const a = parseInt(qs('stS-' + k).value, 10), b = parseInt(qs('stE-' + k).value, 10);
+        if (!(a >= 0 && a <= 23 && b >= 1 && b <= 24)){ msg('ساعت‌ها نامعتبر است (شروع ۰ تا ۲۳، پایان ۱ تا ۲۴).'); return; }
+        win[k] = { startHour: a, endHour: b };
+      }
+      save(win);
+    };
+    qs('stReset').onclick = () => { if (!confirm('بازه‌ها به مقدار پیش‌فرض برگردد؟')) return; const win = {}; KEYS.forEach(k => { win[k] = { startHour: DEF_WIN[k][0], endHour: DEF_WIN[k][1] }; }); save(win); };
+  };
+
+  /* ---- گوشی‌های دارای اعلان (ادمین) ---- */
+  window.renderDevices = async function(){
+    const out = qs('dvOut'); loading(out);
+    const [all, us] = await Promise.all([safeGetPrefix('pushtoken:'), usersList()]);
+    if (!all){ out.innerHTML = '<p class="people-empty">اتصال برقرار نشد.</p>'; return; }
+    const rows = Object.keys(all).map(k => ({ k: k, v: all[k] })).filter(x => x.v && !x.v.deleted && x.v.token).sort((a, b) => (a.v.team || '').localeCompare(b.v.team || ''));
+    const names = new Set(rows.map(x => x.v.name));
+    const missing = us.filter(u => !names.has(u.name));
+    out.innerHTML = '<p class="u-lbl">' + nfa(rows.length) + ' گوشی ثبت شده است.</p>' + rows.map((x, i) => '<div class="xc-item"><b>' + escH(x.v.name || '-') + '</b> · ' + (x.v.team === 'admin' ? 'کارشناس/ادمین' : 'تیم ' + escH(x.v.team || '-')) +
+      '<div class="xc-sub">ثبت: ' + escH(new Date(x.v.t || 0).toLocaleDateString('fa-IR')) + ' · …' + escH(String(x.v.token).slice(-6)) + '</div><div class="xc-btns"><button data-i="' + i + '" style="color:var(--red)">حذف</button></div></div>').join('') +
+      (missing.length ? '<p class="u-lbl" style="margin-top:10px;font-weight:700">بدون گوشی ثبت‌شده:</p><div class="xc-item">' + missing.map(u => escH(u.name) + ' (' + roleFa(u.role) + ')').join('<br>') + '</div>' : '');
+    out.querySelectorAll('button[data-i]').forEach(b => { b.onclick = async () => {
+      const x = rows[+b.dataset.i]; if (!confirm('اعلان این گوشی حذف شود؟ (کاربر دوباره باید اعلان را فعال کند)')) return;
+      await safeSet(x.k, { deleted: true, t: Date.now() }); audit('حذف گوشی اعلان', x.v.name + ' · ' + x.v.team); window.renderDevices(); }; });
+  };
+
+  /* ---- پشتیبان‌گیری و بازگردانی (ادمین) ---- */
+  const OK_KEY = /^(report|referral|lock):\d{4}-\d{2}-\d{2}:(day|evening|night)$/;
+  const OK_FIXED = ['users-list', 'supervisors-list', 'staff-list', 'shift-config', 'shift-settings'];
+  let bkBound = false;
+  window.renderBackup = function(){
+    if (bkBound) return; bkBound = true;
+    const msg = (t, ok) => { const m = qs('bkMsg'); m.textContent = t || ''; m.className = 'auth-msg' + (ok ? ' ok' : ''); };
+    qs('bkDownload').onclick = async () => {
+      msg('در حال جمع‌آوری داده‌ها…', true);
+      try{
+        const parts = await Promise.all(['report:', 'referral:', 'lock:'].map(p => safeGetPrefix(p)));
+        if (parts.some(x => !x)){ msg('اتصال برقرار نشد.'); return; }
+        const data = {}; parts.forEach(o => Object.keys(o).forEach(k => { if (o[k] != null) data[k] = o[k]; }));
+        for (const k of OK_FIXED){ const v = await safeGet(k); if (v !== null && v !== undefined) data[k] = v; }
+        const blob = new Blob([JSON.stringify({ app: 'shift-report', version: 1, created: new Date().toISOString(), by: myName(), count: Object.keys(data).length, data: data })], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'shift-backup-' + isoDate(new Date()) + '.json';
+        document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+        audit('دریافت پشتیبان', Object.keys(data).length + ' مورد'); msg('پشتیبان دریافت شد (' + nfa(Object.keys(data).length) + ' مورد).', true);
+      }catch(e){ msg('دریافت پشتیبان ناموفق بود.'); }
+    };
+    qs('bkRestore').onclick = async () => {
+      const f = qs('bkFile').files[0]; if (!f){ msg('ابتدا فایل پشتیبان را انتخاب کنید.'); return; }
+      let obj; try{ obj = JSON.parse(await f.text()); }catch(e){ msg('فایل معتبر نیست.'); return; }
+      if (!obj || obj.app !== 'shift-report' || !obj.data || typeof obj.data !== 'object'){ msg('این فایل، پشتیبان این برنامه نیست.'); return; }
+      const keys = Object.keys(obj.data).filter(k => (OK_KEY.test(k) || OK_FIXED.indexOf(k) > -1) && obj.data[k] != null);
+      if (!keys.length){ msg('داده‌ی قابل بازگردانی در فایل نیست.'); return; }
+      if (!confirm(nfa(keys.length) + ' مورد بازگردانی می‌شود و داده‌های هم‌نام فعلی جایگزین می‌شوند. ادامه می‌دهید؟')) return;
+      let ok = 0, bad = 0; qs('bkRestore').disabled = true;
+      try{
+        for (let i = 0; i < keys.length; i++){
+          msg('در حال بازگردانی… ' + nfa(i + 1) + ' از ' + nfa(keys.length), true);
+          (await safeSet(keys[i], obj.data[keys[i]])) ? ok++ : bad++;
+        }
+      } finally { qs('bkRestore').disabled = false; }
+      audit('بازگردانی پشتیبان', ok + ' موفق · ' + bad + ' ناموفق · فایل ' + (obj.created || ''));
+      msg('بازگردانی تمام شد: ' + nfa(ok) + ' موفق، ' + nfa(bad) + ' ناموفق.', bad === 0);
+      try{ await loadMonths(viewMonthKeys(), true); await loadConfigExtras(); await refreshAll(); }catch(e){}
+    };
+  };
 })();
 </script>
 
