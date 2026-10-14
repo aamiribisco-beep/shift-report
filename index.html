@@ -1304,11 +1304,17 @@ const isAdminReferral = t => /\(ارجاع شده از سمت ادمین\)\s*$/.
 const REF_BY_RE = /\s*\(ارجاع‌دهنده:\s*([^)]*)\)\s*$/;
 function stripReferralSuffix(desc){ return String(desc||'').replace(REFERRAL_SUFFIX_RE, '').replace(REF_BY_RE, ''); }
 function referrerOf(text){ const m = String(text||'').replace(REFERRAL_SUFFIX_RE, '').match(REF_BY_RE); return m ? m[1].trim() : ''; }
+const nameKey = n => String(n||'').replace(/[\u200c\u200d\s]/g, '');
+function canonName(n){   // املای درست اسم (با نیم‌فاصله) را از فهرست مسئولین/پرسنل برمی‌گرداند
+  const k = nameKey(n); if (!k) return String(n||'').trim();
+  const hit = SUPERVISORS.concat(STAFF).find(x => nameKey(x) === k);
+  return hit || String(n).trim();
+}
 function makeRefText(text, name, byAdmin){
-  const n = String(name||'').replace(/[()]/g, '').trim();
+  const n = canonName(String(name||'').replace(/[()]/g, '').trim());
   return text + (n ? ' (ارجاع‌دهنده: ' + n + ')' : '') + (byAdmin ? ADMIN_REF_SUFFIX : '');
 }
-function refTagLabel(byAdmin, name){ return (byAdmin ? 'ارجاع شده از سمت کارشناس' : 'ارجاع شده از شیفت قبل') + (name ? ' — ' + name : ''); }
+function refTagLabel(byAdmin, name){ return (byAdmin ? 'ارجاع شده از سمت کارشناس' : 'ارجاع شده از شیفت قبل') + (name ? ' — ' + canonName(name) : ''); }
 
 function activityRowHtml(rowIndex, a, availableNames, shiftKey){
   a = a || {desc:'',workOrder:'',workType:'',performedBy:[],timeFrom:'',timeTo:''};
@@ -2370,7 +2376,7 @@ document.getElementById('exportBtn').onclick = async () => {
         consRows.push([dStr, jalaliStr, shiftLabel[key], team, record.supervisor||'', ci+1, c.name||'', c.unit||'', c.amount||'', c.location||'']);
       });
       const acts = (record.activities||[]).filter(a=>a.desc||a.workOrder||a.workType||(a.performedBy&&a.performedBy.length))
-        .filter(a => (!fType || a.workType === fType) && (!fMine || (a.referred && a.referrerName === myName)));
+        .filter(a => (!fType || a.workType === fType) && (!fMine || (a.referred && nameKey(a.referrerName) === nameKey(myName))));
       const attendeesStr = (record.attendees||[]).join('، ');
       if (acts.length===0){
         if (actFilter) continue;
@@ -3071,9 +3077,9 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
     const out = qs('rsOut'); loading(out);
     await loadMonths(monthsAround(), true);
     const me = myName(), items = [], todayS = isoDate(today), from = addDays(todayS, -30);
-    Object.keys(referralsStore).forEach(k => { const p = k.split(':'); if (p[1] < from) return; (referralsStore[k] || []).forEach(t => { if (referrerOf(t) === me) items.push({ d: p[1], sk: p[2], desc: stripReferralSuffix(t), st: 'wait' }); }); });
+    Object.keys(referralsStore).forEach(k => { const p = k.split(':'); if (p[1] < from) return; (referralsStore[k] || []).forEach(t => { if (nameKey(referrerOf(t)) === nameKey(me)) items.push({ d: p[1], sk: p[2], desc: stripReferralSuffix(t), st: 'wait' }); }); });
     Object.keys(reportsStore).forEach(k => { const rec = reportsStore[k], p = k.split(':'); if (!rec || p[1] < from) return;
-      (rec.activities || []).forEach(a => { if (a.referred && a.referrerName === me) items.push({ d: p[1], sk: p[2], desc: stripReferralSuffix(a.desc), st: (a.workType && (a.performedBy || []).length) ? 'ok' : 'in', a: a }); }); });
+      (rec.activities || []).forEach(a => { if (a.referred && nameKey(a.referrerName) === nameKey(me)) items.push({ d: p[1], sk: p[2], desc: stripReferralSuffix(a.desc), st: (a.workType && (a.performedBy || []).length) ? 'ok' : 'in', a: a }); }); });
     items.sort((x, y) => y.d.localeCompare(x.d));
     const lab = { wait:'در انتظار شیفت مقصد', in:'وارد گزارش شد', ok:'انجام شد' };
     out.innerHTML = items.length ? items.map(it => '<div class="xc-item"><div>' + escH(it.desc) + '</div><div class="xc-sub">' + escH(jal(it.d)) + ' · ' + SH[it.sk] + ' · شیفت ' + escH(teamOf(it.d, it.sk)) +
