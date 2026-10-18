@@ -439,7 +439,7 @@
 
       <div class="admin-section" id="adm-settings">
         <label>مهلت ثبت گزارش هر شیفت</label>
-        <p class="u-lbl">هر شیفت از ساعت شروعش به‌اندازه‌ی «مدت مهلت» (پیش‌فرض ۲۴ ساعت) قابل ثبت و ویرایش است. ساعت‌های انتخابی داخل فرم گزارش تغییر نمی‌کنند.</p>
+        <p class="u-lbl">هر شیفت از ساعت شروعش تا پایانِ شیفتِ بعدی قابل ثبت و ویرایش است (مثلاً صبح‌کار تا پایان عصرکار). ساعت‌های انتخابی داخل فرم گزارش تغییر نمی‌کنند.</p>
         <div id="stBody"></div>
         <p class="auth-msg" id="stMsg" style="min-height:18px"></p>
         <div class="btn-row"><button class="btn btn-save" id="stSave" type="button">ذخیره</button><button class="btn btn-cancel" id="stReset" type="button">بازگشت به پیش‌فرض</button></div>
@@ -637,9 +637,9 @@ let selectedDate = stripTime(new Date());
 
 // Reporting-entry window per shift, in real wall-clock hours. Night crosses
 // midnight, so its window starts on the report's own date and ends the
-// next morning. مهلت ثبت هر شیفت = WINDOW_HOURS ساعت از ساعت شروع همان شیفت
-// (پیش‌فرض ۲۴ ساعت؛ صبح‌کار ۰۷:۰۰ تا ۰۷:۰۰ فردا، عصرکار ۱۵:۰۰ تا ۱۵:۰۰ فردا، شب‌کار ۲۳:۰۰ تا ۲۳:۰۰ فردا).
-let WINDOW_HOURS = 24;
+// next morning. مهلت ثبت هر شیفت = از شروع همان شیفت تا پایانِ شیفتِ بعدی
+// (صبح‌کار تا پایان عصرکار ۲۳:۰۰ همان روز، عصرکار تا پایان شب‌کار ۰۷:۰۰ فردا، شب‌کار تا پایان صبح‌کارِ فردا ۱۵:۰۰).
+const SHIFT_SEQ = ['day', 'evening', 'night'];
 const SHIFT_WINDOW = {
   day:     { startHour: 7  },
   evening: { startHour: 15 },
@@ -653,7 +653,11 @@ function shiftWindowRange(dateStr, shiftKey){
   const base = new Date(dateStr+'T00:00:00');
   const start = new Date(base);
   start.setHours(win.startHour, 0, 0, 0);
-  const end = new Date(start.getTime() + WINDOW_HOURS * 3600000);
+  // پایانِ شیفتِ بعدی = ساعت شروعِ شیفتِ دو تا بعد؛ اولین باری که بعد از شروع همین شیفت می‌رسد
+  const endShift = SHIFT_SEQ[(SHIFT_SEQ.indexOf(shiftKey) + 2) % 3];
+  const end = new Date(base);
+  end.setHours(SHIFT_WINDOW[endShift].startHour, 0, 0, 0);
+  while (end <= start) end.setDate(end.getDate() + 1);
   return { start, end };
 }
 
@@ -678,7 +682,6 @@ function canEditReport(d, k){
 function applyShiftSettings(st){
   try{
     if (!st) return;
-    const h = Number(st.hours); if (Number.isFinite(h) && h >= 1 && h <= 72) WINDOW_HOURS = h;
     const w = st.windows; if (!w) return;
     ['day','evening','night'].forEach(k => {
       const x = w[k]; if (!x) return;
@@ -2154,7 +2157,7 @@ const EXPERT_CARDS = [   // کارشناس
 const OWNER_CARDS = [   // ادمین (بدون ارجاع کار، وضعیت ارجاع، گزارش‌های ثبت‌نشده، مدیریت ارجاع و سابقه‌ی تغییرات)
   EXPERT_CARDS.find(c => c.id === 'adm-excel'),
   EXPERT_CARDS.find(c => c.id === 'adm-view'),
-  { id:'adm-settings', title:'تنظیم بازه‌ی شیفت‌ها',    sub:'مدت مهلت و ساعت شروع هر شیفت', onOpen: () => { if (window.renderSettings) window.renderSettings(); } },
+  { id:'adm-settings', title:'تنظیم بازه‌ی شیفت‌ها',    sub:'ساعت شروع هر شیفت (مهلت ثبت: تا پایان شیفت بعد)', onOpen: () => { if (window.renderSettings) window.renderSettings(); } },
   { id:'adm-devices',  title:'گوشی‌های دارای اعلان',   sub:'مشاهده و حذف', onOpen: () => { if (window.renderDevices) window.renderDevices(); } },
   { id:'adm-backup',   title:'پشتیبان‌گیری',           sub:'دریافت و بازگردانی', onOpen: () => { if (window.renderBackup) window.renderBackup(); } },
   { id:'adm-rotation', title:'ترتیب چرخش شیفت‌ها',     sub:'تاریخ مرجع و ترتیب شیفت‌ها', onOpen: fillRotation },
@@ -3167,26 +3170,24 @@ const VAPID_KEY = 'BJ0fduGVTjIrKVScTrTOVRV3HzhLWsRw-6B3Ov1ZxXefGaFs1Udu8w3GSQWs4
   /* ---- تنظیم بازه‌ی شیفت‌ها (ادمین) ---- */
   const DEF_START = { day:7, evening:15, night:23 };
   window.renderSettings = function(){
-    qs('stBody').innerHTML = '<div class="u-card"><p class="u-lbl" style="font-weight:700">مدت مهلت ثبت گزارش (ساعت، از شروع هر شیفت)</p><input type="number" min="1" max="72" id="stH" value="' + WINDOW_HOURS + '"></div>' +
-      KEYS.map(k => '<div class="u-card"><p class="u-lbl" style="font-weight:700">' + SH[k] + '</p><p class="u-lbl">ساعت شروع</p><input type="number" min="0" max="23" id="stS-' + k + '" value="' + SHIFT_WINDOW[k].startHour + '"></div>').join('');
+    qs('stBody').innerHTML = KEYS.map(k => '<div class="u-card"><p class="u-lbl" style="font-weight:700">' + SH[k] + '</p><p class="u-lbl">ساعت شروع</p><input type="number" min="0" max="23" id="stS-' + k + '" value="' + SHIFT_WINDOW[k].startHour + '"></div>').join('');
     const msg = (t, ok) => { const m = qs('stMsg'); m.textContent = t || ''; m.className = 'auth-msg' + (ok ? ' ok' : ''); };
     msg('');
-    const save = async (win, hours) => {
-      const st = { windows: win, hours: hours };
+    const save = async win => {
+      const st = { windows: win };
       const ok = await safeSet('shift-settings', st);
-      if (ok){ applyShiftSettings(st); audit('تغییر مهلت ثبت گزارش', hours + ' ساعت · ' + KEYS.map(k => SH[k] + ' ' + win[k].startHour).join(' · ')); try{ refreshAllSilently(); }catch(e){} window.renderSettings(); msg('ذخیره شد.', true); } else msg('ذخیره ناموفق بود؛ اینترنت را بررسی کنید.');
+      if (ok){ applyShiftSettings(st); audit('تغییر ساعت شروع شیفت‌ها', KEYS.map(k => SH[k] + ' ' + win[k].startHour).join(' · ')); try{ refreshAllSilently(); }catch(e){} window.renderSettings(); msg('ذخیره شد.', true); } else msg('ذخیره ناموفق بود؛ اینترنت را بررسی کنید.');
     };
     qs('stSave').onclick = () => {
-      const win = {}, h = parseInt(qs('stH').value, 10);
-      if (!(h >= 1 && h <= 72)){ msg('مدت مهلت باید بین ۱ تا ۷۲ ساعت باشد.'); return; }
+      const win = {};
       for (const k of KEYS){
         const a = parseInt(qs('stS-' + k).value, 10);
         if (!(a >= 0 && a <= 23)){ msg('ساعت شروع باید بین ۰ تا ۲۳ باشد.'); return; }
         win[k] = { startHour: a };
       }
-      save(win, h);
+      save(win);
     };
-    qs('stReset').onclick = () => { if (!confirm('مهلت ۲۴ ساعت و ساعت‌های شروع پیش‌فرض برگردد؟')) return; const win = {}; KEYS.forEach(k => { win[k] = { startHour: DEF_START[k] }; }); save(win, 24); };
+    qs('stReset').onclick = () => { if (!confirm('ساعت‌های شروع پیش‌فرض برگردد؟')) return; const win = {}; KEYS.forEach(k => { win[k] = { startHour: DEF_START[k] }; }); save(win); };
   };
 
   /* ---- گوشی‌های دارای اعلان (ادمین) ---- */
