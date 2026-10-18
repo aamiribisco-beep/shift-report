@@ -445,30 +445,33 @@ let isAdmin = false;
 const today = stripTime(new Date());
 let selectedDate = stripTime(new Date());
 
-// Reporting-entry window per shift. شروع بازه همان ساعت شروع شیفت است و
-// مهلت ثبت گزارش از لحظه‌ی شروع، دقیقاً ENTRY_WINDOW_HOURS ساعت (۲۴ ساعت)
-// باز می‌ماند. صبح‌کار: 07:00 تا 07:00 روز بعد، عصرکار: 15:00 تا 15:00 روز
-// بعد، شب‌کار: 23:00 تا 23:00 روز بعد.
-const ENTRY_WINDOW_HOURS = 24;
+// Reporting-entry window per shift, in real wall-clock hours. Night crosses
+// midnight, so its window starts on the report's own date and ends the
+// next morning. صبح‌کار: 07:00-16:00، عصرکار: 15:00-24:00، شب‌کار: 23:00
+// (همان روز) تا 08:00 (روز بعد).
 const SHIFT_WINDOW = {
-  day:     { startHour: 7  },
-  evening: { startHour: 15 },
-  night:   { startHour: 23 },
+  day:     { startHour: 7,  endHour: 16 },
+  evening: { startHour: 15, endHour: 24 },
+  night:   { startHour: 23, endHour: 8  },
 };
 
 // Real start/end Date objects for the entry window of a given (dateStr,
 // shiftKey) report.
 function shiftWindowRange(dateStr, shiftKey){
   const win = SHIFT_WINDOW[shiftKey];
-  const start = new Date(dateStr+'T00:00:00');
+  const base = new Date(dateStr+'T00:00:00');
+  const start = new Date(base);
   start.setHours(win.startHour, 0, 0, 0);
-  const end = new Date(start);
-  end.setHours(end.getHours() + ENTRY_WINDOW_HOURS);
+  const end = new Date(base);
+  if (win.endHour <= win.startHour) end.setDate(end.getDate()+1); // شب‌کار: روز بعد
+  end.setHours(win.endHour, 0, 0, 0);
   return { start, end };
 }
 
-// A normal سرشیفت (غیر ادمین) از شروع شیفت تا ۲۴ ساعت بعد می‌تواند گزارش
-// را ثبت/ویرایش کند. بعد از پایان این ۲۴ ساعت فقط ادمین می‌تواند ویرایش کند.
+// A normal سرشیفت (غیر ادمین) فقط داخل بازه‌ی زمانی واقعی همان شیفت
+// می‌تواند گزارش را ثبت/ویرایش کند. به محض تمام‌شدن آن بازه — حتی برای
+// همان روز — دیگر قابل ویرایش نیست مگر با دسترسی ادمین (روزهای قبل هم
+// همینطور: چون بازه‌شان گذشته، فقط ادمین می‌تواند ویرایش کند).
 function isEditableNow(dateStr, shiftKey){
   const { start, end } = shiftWindowRange(dateStr, shiftKey);
   const now = new Date();
